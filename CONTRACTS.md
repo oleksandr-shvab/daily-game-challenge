@@ -11,11 +11,15 @@ repo-internal detail (stack choices, file layout) — only the seams between the
 
 ## API base and routing
 
-- Backend serves on `http://localhost:8000`, no `/api` prefix (`/auth/login`, not
-  `/api/auth/login`).
-- Frontend calls `/api/...`; Vite's dev proxy strips `/api` and forwards to the
-  backend. This keeps a stable frontend-facing path independent of backend mounting.
-- Frontend dev server: `http://localhost:5173`. Backend CORS allows this origin.
+- Backend serves on `http://localhost:8000`. The API lives under `/v1` (`/v1/auth/login`); the
+  health endpoints (`/healthz`, `/readyz`) are outside the version prefix.
+- Frontend calls `/api/v1/...`; Vite's dev proxy (and the production proxy) strips `/api` and
+  forwards `/v1/...` to the backend. This keeps a stable frontend-facing path independent of backend
+  mounting. A breaking change to the API means `/v2`, served next to `/v1` until the clients move.
+- Frontend dev server: `http://localhost:5173`. Backend CORS allows this origin (local only).
+- The backend commits its OpenAPI document as `my-list-be/openapi/openapi.json` (rewrite it with
+  `uv run python scripts/export_openapi.py`; a test and CI fail when it is stale). Operation ids are
+  `<tag>_<handler name>` (`auth_login`), so renaming a handler is an API change.
 
 ## Auth
 
@@ -112,11 +116,16 @@ repo-internal detail (stack choices, file layout) — only the seams between the
 
 ## API types
 
-- Frontend generates types from the backend's OpenAPI spec via Orval — not
-  hand-written. (Not set up yet: until it is, the auth types in the frontend are hand-written.) If a frontend type or Zod schema looks like it duplicates a backend
-  Pydantic model, it should be generated instead.
-- When backend schemas change shape, regenerate frontend types from the updated
-  OpenAPI spec in the same pass, rather than hand-patching frontend types.
+- The frontend generates its API client and types from the backend's OpenAPI snapshot with Orval
+  (`npm run api:generate`); the generated code is committed under `my-list-fe/src/api/generated/`.
+  Do not hand-write types for backend models.
+- Two checks keep the sides in step: the backend's CI fails when `openapi/openapi.json` is stale or
+  has a breaking change against `main` (unless the pull request has the `breaking-change` label);
+  the frontend's CI regenerates the code from the backend's `main` snapshot and fails when it
+  differs from what is committed.
+- A boundary change is therefore: change the backend, rewrite the snapshot, merge it (label
+  `breaking-change` if it breaks clients), then regenerate and commit in the frontend in the same
+  pass. When backend schemas change shape, regenerate; do not hand-patch types.
 
 ## Keeping this file in sync
 
