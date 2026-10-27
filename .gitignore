@@ -1,0 +1,6 @@
+# The two app repos have their own git history; this repo holds only what sits between them.
+my-list-be/
+my-list-fe/
+
+.DS_Store
+.idea/
