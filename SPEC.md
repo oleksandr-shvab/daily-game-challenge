@@ -1,6 +1,6 @@
 # Spec: Daily Game Challenge
 
-Status: draft 20. This is the general site spec. It covers the shell, accounts, progress, archive and how games plug in. Each game (starting with the game guesser) and each larger feature gets its own smaller spec later (backend in `my-list-be/specs/`, frontend in `my-list-fe/docs/specs/`).
+Status: draft 21. This is the general site spec. It covers the shell, accounts, progress, archive and how games plug in. Each game (starting with the game guesser) and each larger feature gets its own smaller spec later (backend in `my-list-be/specs/`, frontend in `my-list-fe/docs/specs/`).
 
 Legend: **[decided]** was stated by the project owner. **[proposed]** is a suggestion, not yet agreed. **[open]** needs a decision.
 
@@ -822,6 +822,8 @@ Every other question asked so far is answered and recorded as decisions 51 to 58
 5. Spike for the playable challenge, before its feature spec: one open-licensed ROM, a start state, a result rule and a recorded replay. Run the replay in the browser and in a native runner built from the same emulator source, and compare the final memory and the result. It answers risks 12 and 13 and replaces my estimates of state size, replay size and verification time with measurements. It is also the first chance to see whether the chosen ROM plays well on a phone.
 6. Spikes for the hidden-character game, before its feature spec: (a) a one-day test of the viewer on an old iPhone, a mid-range Android phone, an iPad and a laptop with a trackpad; (b) size and memory of real 4096-pixel scenes; (c) a solver probe (template matching and a few multimodal models) on 20 generated scenes; (d) a playtest with about 10 people to see whether wrong-click spamming needs a penalty and to set the difficulty tiers.
 7. Spike for the geometry game, before its feature spec: a generator prototype for two figure families (a triangle with a line through a vertex, and parallel lines with a crossing line). Measure how many random choices of givens give a unique answer, the spread of derivation lengths, and how the engine compares with Newclid; draw 20 figures and check that they are readable; have a person solve 20 puzzles with the clues and say whether each clue helped; and compare how hard the kinds feel at the same derivation length.
+
+**Milestone 1** (the owner's plan of 2026-10-27): a production-ready site with one game, the game guesser. The task plan, the definition of done, the decisions it needs and the order are in [MILESTONE-1.md](MILESTONE-1.md). It starts with changing the existing app into Daily Game Challenge (name, nav, optional login, no Lists), then builds the game guesser and the production hardening.
 
 ## 11. Sources
 
