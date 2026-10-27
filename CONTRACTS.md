@@ -104,7 +104,7 @@ repo-internal detail (stack choices, file layout) — only the seams between the
 - Every response carries `X-Request-ID` (the proxy's value if well formed, else generated) and the
   same id is in the body as `request_id`; the frontend shows it on its error screen.
 - The frontend's `ApiError` mirrors this (`status`, `code`, `params`, `requestId`, `fieldErrors`) and
-  shows texts looked up by `code`; a response without a JSON body (a proxy error page) becomes
+  shows texts looked up by `code` in its English and Russian catalogues (`errors.<code>`; an unknown code shows a generic text, never the backend's English); a response without a JSON body (a proxy error page) becomes
   `code: "http_error"`, and no response at all becomes `status: 0, code: "network_error"`.
 - Success bodies are unchanged. The `202` of `forgot-password` still returns `{"detail": "..."}`.
 
