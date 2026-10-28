@@ -1,4 +1,4 @@
-# MyList: Frontend/Backend Contracts
+# Daily Game Challenge: Frontend/Backend Contracts
 
 Shared reference for `my-list-fe` and `my-list-be`. Anything here must stay true on
 both sides — when one repo's Claude session changes one of these, update this file
@@ -35,8 +35,8 @@ repo-internal detail (stack choices, file layout) — only the seams between the
   cookie won't round-trip to `http://localhost:5173`.
 - No CSRF protection exists yet (backend gap, judged sufficient for now via
   `SameSite=Lax` since there's currently one mutating domain). Not something the
-  frontend compensates for — revisit together once more mutating routes land
-  (`items`).
+  frontend compensates for — revisit together when the Phase 1 game endpoints (guesses,
+  progress, guest merge) land; the CSRF Origin check is task M1-41.
 - Frontend never handles a raw token; all requests use `withCredentials: true`.
 - The cookie is `Secure` in every environment except `local` and `test`. Passwords are 8 to 128
   characters (counted as characters, not bytes) and are hashed with argon2id.
@@ -126,6 +126,9 @@ repo-internal detail (stack choices, file layout) — only the seams between the
 - A boundary change is therefore: change the backend, rewrite the snapshot, merge it (label
   `breaking-change` if it breaks clients), then regenerate and commit in the frontend in the same
   pass. When backend schemas change shape, regenerate; do not hand-patch types.
+- The snapshot's `info.title` is "Daily Game Challenge API". Orval copies it into the header of every
+  generated file, so changing it is a non-breaking boundary change: merge the backend snapshot first,
+  then regenerate the frontend client.
 
 ## Keeping this file in sync
 
