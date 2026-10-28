@@ -174,7 +174,7 @@ This is the shape of the boundary between the shell and a game module, not how e
 
 ### M1-05 Leftovers in docs, skills and config (SPEC section 10 step 3; M1-05; research section 1)
 
-- **AC-57** A text search shall find no "MyList", "item-list", "item_list", "field_schema", "custom_attributes" or "dynamic-category-schema" in: the root `CLAUDE.md` and `CONTRACTS.md`, both repo `CLAUDE.md` files, both repos' skills, both READMEs, and the backend's `specs/password-update.md`. Allowed: history text in `SPEC.md`, `ARCHITECTURE.md`, `MILESTONE-1.md`, repo folder names and the `my-list-be` path in the frontend's Orval config and CI.
+- **AC-57** A text search shall find no "MyList", "item-list", "item_list", "field_schema", "custom_attributes" or "dynamic-category-schema" in: the root `CLAUDE.md` and `CONTRACTS.md`, both repo `CLAUDE.md` files, both repos' skills, both READMEs, and the backend's `specs/password-update.md`. Allowed: history text in `SPEC.md`, `ARCHITECTURE.md`, `MILESTONE-1.md`, repo folder names, the `my-list-be` path in the frontend's Orval config and CI, and the one-time note about the old `item_list` volume that AC-8b requires (backend `CLAUDE.md` and README).
 - **AC-58** Both `dynamic-category-schema` skills shall be deleted; other skills shall stay, with their references to it removed.
 - **AC-59** Each repo README shall say in a few lines what the repo is (part of Daily Game Challenge) and how to install, run and test it.
 - **AC-60** The frontend `CLAUDE.md` shall describe the current shell (optional login, sidebar layout, game registry) and shall not name files that do not exist.

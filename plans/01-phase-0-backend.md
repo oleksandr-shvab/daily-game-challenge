@@ -212,7 +212,7 @@ uv run pytest -q
 | Tests, B2 only | `<4 values> uv run pytest -q tests/test_openapi.py` | 2 passed. Needs Redis on 6390: an autouse fixture flushes Redis (`tests/conftest.py:84-88`) |
 | Migrations (B1, optional) | `docker exec dgc-dev-pg createdb -U postgres daily_game_challenge` (ignore "already exists"), then `<4 values> uv run alembic upgrade head` and `<4 values> uv run alembic check` | exit 0 |
 | Compose file | `docker compose config \| grep -E "POSTGRES_DB\|db_data"` (renders the file, starts nothing) | `POSTGRES_DB: daily_game_challenge`; volume still `my-list-be_db_data` |
-| Leftovers, backend | `git grep -n -i -E "mylist\|item-list\|item_list\|field_schema\|custom_attributes\|dynamic-category-schema"` | no output (after B3) |
+| Leftovers, backend | `git grep -n -i -E "mylist\|item-list\|item_list\|field_schema\|custom_attributes\|dynamic-category-schema"` | only the AC-8b old-volume note in `CLAUDE.md` and the README (after B3) |
 | Leftovers, platform | in the platform folder: `grep -n -i -E "mylist\|item-list\|item_list\|field_schema\|custom_attributes\|dynamic-category-schema\|\(.items.\)" CLAUDE.md CONTRACTS.md` | no output (after the B2 pass) |
 
 The full suite is cheap (28 tests); run it once per PR. CI runs all four jobs on every PR anyway.
@@ -220,7 +220,7 @@ The full suite is cheap (28 tests); run it once per PR. CI runs all four jobs on
 ### Acceptance per PR
 
 **B1**
-1. `git grep -n item_list` gives no output.
+1. `git grep -n item_list` gives only the AC-8b old-volume note in `CLAUDE.md` (allowed by AC-57; the same note in the README of B3 is allowed too).
 2. `grep -c daily-game-challenge-be pyproject.toml uv.lock` gives 1 and 1; `git grep -n '"my-list-be"'` gives no output.
 3. `git diff main -- uv.lock` changes only the project block (name and position).
 4. The lockfile, lint, format, snapshot and full test commands pass. The compose check shows the new name.
