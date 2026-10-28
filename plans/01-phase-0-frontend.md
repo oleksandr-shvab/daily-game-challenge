@@ -47,7 +47,7 @@ Recommendations:
 
 - **Recommended: multi-agent, one PR at a time.** For each PR (F1, F2, F3, F4): one `implementer` run for that PR's section only, then `plan-verifier` against that PR's acceptance checks, then the owner merges. Add a review pass (`code-review` at `medium` effort) after F2 (security: redirect validation, 401 handling, session state) and after F4 (accessibility and layout). F0 runs whenever backend B2 is merged and must be the next frontend merge after it. `shvab:implement-plan` can drive implementer, plan-verifier and the review loop for one PR section.
 - Why not one agent for everything: F2 and F4 change shared layout and auth code; a check between PRs catches mistakes before the next PR builds on them.
-- **Owner's choice: to be confirmed by the owner.** I could not ask from this subagent.
+- **Owner's choice (2026-10-28): one agent per PR, each checked by `plan-verifier`,** as recommended here, with the review passes after F2 and F4.
 
 ## Assumptions about the backend
 
@@ -316,12 +316,12 @@ Run in `/home/alexandr/Developer/MyList project/my-list-fe`. After any route fil
 
 ## Open points
 
-1. **Package name `daily-game-challenge-fe`** is the spec's proposal, not yet confirmed. Recommendation: use it (F0 step 2).
-2. **Session state (R-1):** replace the Zustand auth store with the `/auth/me` query as the only source. Recommendation: yes; it removes the stale-cache bug by design and matches `CLAUDE.md:58`. The alternative (keep the store and sync it in five places) also meets the ACs but keeps the bug's cause.
-3. **DOM component tests in Phase 0:** add `jsdom`, `@testing-library/react`, `@testing-library/user-event` (three dev dependencies) in F3 for a few tests of the error boundary, current-entry marking, the account area and the menu keys. Recommendation: yes; otherwise these ACs have only manual checks until M1-50 in Phase 5. Without it, the plan still works: those items move to the manual checklist.
+1. **Package name `daily-game-challenge-fe`:** confirmed by the owner on 2026-10-28 (F0 step 2).
+2. **Session state (R-1), decided 2026-10-28: yes.** Replace the Zustand auth store with the `/auth/me` query as the only source. Recommendation: yes; it removes the stale-cache bug by design and matches `CLAUDE.md:58`. The alternative (keep the store and sync it in five places) also meets the ACs but keeps the bug's cause.
+3. **DOM component tests in Phase 0, decided 2026-10-28: yes.** Add `jsdom`, `@testing-library/react`, `@testing-library/user-event` (three dev dependencies) in F3 for a few tests of the error boundary, current-entry marking, the account area and the menu keys. Recommendation: yes; otherwise these ACs have only manual checks until M1-50 in Phase 5. Without it, the plan still works: those items move to the manual checklist.
 4. **One edit in the vendored `src/components/ui/sidebar.tsx`** (F4 step 2), so the phone panel's screen-reader title is translated (AC-61). Recommendation: allow it as one marked block and list it in `CLAUDE.md`. Without it, the panel title stays the English "Sidebar" in both languages.
 5. **Game name:** "Game Guesser" in Latin letters in both catalogues until the public names are chosen (decisions 32 and 53). Recommendation: yes. A Russian label could suggest a Russian game, and the game stays English.
-6. **AC-69 wording:** the app already stores a `sessionStorage` key `chunk-reload-attempted` (`src/lib/version-skew.ts:1`), set only after a failed chunk load. It is not new, but AC-69's list does not name it. Recommendation: add it to the spec's list; no code change.
+6. **AC-69 wording (spec already updated, 2026-10-28):** the app already stores a `sessionStorage` key `chunk-reload-attempted` (`src/lib/version-skew.ts:1`), set only after a failed chunk load. It is not new, but AC-69's list does not name it. Recommendation: add it to the spec's list; no code change.
 
 ## Traceability
 

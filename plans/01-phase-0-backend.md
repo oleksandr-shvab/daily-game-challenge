@@ -15,7 +15,7 @@ Status: draft, 2026-10-28. Scope: the backend repo `my-list-be/` and the platfor
 
 No questions could be asked; open items are in "Open points" at the end. Recommendations below are my judgment, not spec text.
 
-- **Proposed names, not yet confirmed by the owner:** package `daily-game-challenge-be`, databases `daily_game_challenge` and `daily_game_challenge_test`. The plan uses them.
+- **Names, confirmed by the owner on 2026-10-28:** package `daily-game-challenge-be`, databases `daily_game_challenge` and `daily_game_challenge_test`. The plan uses them.
 - **Recommendation:** keep the Docker Compose project name as it is (derived from the folder: `my-list-be`). The volume stays `my-list-be_db_data`; only the database inside changes. See Open point 2.
 - **Recommendation:** no new test for the title. The snapshot test (`tests/test_openapi.py:9`) already compares the whole document, title included.
 - **Recommendation:** write the README in PR B3, not B1, so B1 stays a pure rename. B1 carries only the short AC-8b note in `CLAUDE.md`.
@@ -24,7 +24,7 @@ No questions could be asked; open items are in "Open points" at the end. Recomme
 ## Execution mode
 
 - **Recommended:** single agent. One `implementer` run does B1, B2 and B3 in order, one branch per PR, then one `plan-verifier` run. `shvab:implement-plan` runs exactly this. The work is small, has no design risk, and touches no application logic.
-- **Owner's choice:** to be confirmed by the owner.
+- **Owner's choice (2026-10-28):** one agent per PR, each checked by `plan-verifier`. For the backend that means one `implementer` run for B1 to B3 as recommended, then one `plan-verifier` run.
 - Commits, pushes and PRs only when the owner asks. Squash merge (`ARCHITECTURE.md:156`). `main` has no branch protection (checked with `gh`), so "CI green before merge" is a rule we follow by hand: all four jobs (lint, test, migrations, openapi).
 
 ## Modules affected
@@ -264,13 +264,13 @@ grep -ohE '`(app|tests|scripts|openapi)/[^`*<> ]*`' CLAUDE.md README.md | tr -d 
 
 ## Open points
 
-1. **Names (proposed, unconfirmed):** `daily-game-challenge-be`, `daily_game_challenge`, `daily_game_challenge_test`. Recommendation: accept them. If they change, only B1 and the docs in B3 change.
+1. **Names (confirmed 2026-10-28):** `daily-game-challenge-be`, `daily_game_challenge`, `daily_game_challenge_test`. Recommendation: accept them. If they change, only B1 and the docs in B3 change.
 2. **Compose names:** the project, container and volume names come from the folder (`my-list-be`, `my-list-be-db-1`, `my-list-be_db_data`) and stay. Recommendation: keep them. A top-level `name:` would leave the old containers holding the same ports and would add cleanup steps for every developer.
 3. **The owner's local `.env`** still says `localhost:5433/item_list` and `item_list_test`, and 5433 is the other project's Postgres. Recommendation: the owner points `.env` at the throwaway containers (5544, 6390) with the new database names. The implementer does not touch `.env`.
 4. **`CONTRACTS.md` ownership and commit:** this plan owns line 1, lines 36-39 and the "API types" note. Recommendation: the frontend plan leaves those lines alone; the platform commit happens right after B2 merges.
 5. **`repository.py` that does not exist:** `fastapi-service-patterns/SKILL.md:9-11,28` and `CLAUDE.md:61` describe `app/<domain>/repository.py`; the code uses `app/crud/` and `app/models/`. Recommendation: B3 describes the real layout in `CLAUDE.md` only, leaves the skill's rule text as it is, and the M1-09 spec decides the layout for game domains.
 6. **AC-19b edge case:** if a signed-in user X opens a reset link for another account Y, only Y's sessions end; X stays signed in, and the reset response does not clear the cookie. Recommendation: no backend change in Phase 0 (the spec allows only the title). The frontend should clear its own state after a reset and not assume that `/auth/me` then answers `401`. Note it for a later backend task.
-7. **Execution mode:** single agent recommended, to be confirmed by the owner.
+7. **Execution mode:** decided 2026-10-28, see the Execution section.
 
 ## Traceability
 
