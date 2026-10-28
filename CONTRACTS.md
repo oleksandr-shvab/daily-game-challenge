@@ -27,8 +27,8 @@ repo-internal detail (stack choices, file layout) — only the seams between the
   `SameSite=Lax` cookie named `session_id` on `POST /auth/register` and
   `POST /auth/login` (register auto-logs-in). Session data lives in Redis
   (`session:{opaque token}` → user id), no Postgres sessions table.
-- `GET /auth/me` returns the current user; frontend calls this in its root route's
-  `beforeLoad` to rehydrate client auth state on every fresh page load.
+- `GET /auth/me` returns the current user; the frontend requests it on every page
+  load without blocking public pages, and treats a 401 as a guest.
 - `POST /auth/logout` deletes the Redis key and clears the cookie.
 - **Cookie host-scoping gotcha**: the cookie is host-scoped, so frontend must reach
   the backend via `http://localhost:8000`, not `127.0.0.1:8000` — otherwise the
