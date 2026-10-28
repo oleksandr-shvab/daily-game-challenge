@@ -189,7 +189,7 @@ This is the shape of the boundary between the shell and a game module, not how e
 - **AC-66** The account menu shall open with Enter, Space or Arrow Down, and Escape shall close it and return focus to its button. The phone sidebar panel shall keep focus inside while open, close on Escape and return focus to the sidebar button.
 - **AC-67** At widths of 320, 360, 768 and 1280 CSS px, no shell page shall scroll sideways at page level.
 - **AC-68** IF browser storage is blocked, THEN the app shall still render, and theme and language shall work for the open tab without being remembered.
-- **AC-69** Phase 0 shall store nothing new in the browser beyond the existing `language` and `theme` keys, the `sidebar_state` cookie and the session cookie.
+- **AC-69** Phase 0 shall store nothing new in the browser beyond the existing `language` and `theme` keys, the `sidebar_state` cookie, the `chunk-reload-attempted` session-storage key (`src/lib/version-skew.ts`) and the session cookie.
 - **AC-70** No new screen or message shall reveal whether an email has an account, beyond what the backend already reveals (409 on sign-up).
 
 ## Edge cases
