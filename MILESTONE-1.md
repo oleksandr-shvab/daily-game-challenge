@@ -27,7 +27,7 @@ Out of scope for Milestone 1: the other games, leaderboards, community stats, th
 
 | # | Decision | Recommended | Blocks |
 |---|---|---|---|
-| D1 | Layout: a top nav bar with the games (SPEC says "nav bar") or the current sidebar | Top bar: the game strip scrolls sideways on phones, login or profile on the right | M1-02, M1-03, M1-07 |
+| D1 | Layout: a top nav bar with the games (SPEC says "nav bar") or the current sidebar | **Answered 2026-10-28: keep the sidebar** (decision 64). Recommended was a top bar | M1-02, M1-03, M1-07 |
 | D2 | Game data and screenshots: IGDB (needs a free Twitch developer account made by you) | IGDB for metadata and screenshots, free tier is non-commercial, attribution shown; check its terms at signup | M1-20 to M1-23 |
 | D3 | Hosting and the domain | Decided later by you; the plan assumes one VPS with Docker Compose and Caddy | M1-40 to M1-47 |
 | D4 | Email provider for password reset (needs the domain first) | Resend free tier or Amazon SES | M1-33 |
@@ -44,11 +44,12 @@ The feature spec for this phase is [specs/01-phase-0-rebrand-optional-login-shel
 
 | ID | Task | Repo | Est. | Depends | Done when |
 |---|---|---|---|---|---|
-| M1-01 | Rename in the UI: product name in `index.html`, catalogues (`app.name`, profile text), bar title, favicon; remove the "MyList" wording. The `package.json` name and the database name stay (decision 26; spec question Q7) | FE | 0.3 | none | no "MyList" left in the app; tests pass |
-| M1-02 | Optional login: the app layout no longer requires a session. A guest sees the shell; "Log in" is a button in the nav ("Sign up" too on wider screens); profile and password change stay behind login, and login returns the visitor to the page they wanted (validated redirect) | FE | 0.7 | D1 | a signed-out visitor reaches `/` and the nav; `/profile` redirects to login |
-| M1-03 | New nav: game entries (one now) from a static frontend registry (the `GET /v1/games` list joins in M1-10), archive link, language switcher, theme toggle, login or profile menu; responsive for phone, tablet, laptop | FE | 1.0 | D1, M1-07 | works at 360, 768 and 1280 px; keyboard reachable |
+| M1-01 | Rename in the UI: product name in `index.html`, catalogues (`app.name`, profile text), bar title, favicon; remove the "MyList" wording | FE | 0.3 | none | no "MyList" left in the app; tests pass |
+| M1-02 | Optional login: the app layout no longer requires a session. A guest sees the shell; "Log in" and "Sign up" are buttons at the bottom of the sidebar (phones also get "Log in" in a slim header); profile and password change stay behind login, and login returns the visitor to the page they wanted (validated redirect) | FE | 0.7 | D1 | a signed-out visitor reaches `/` and the nav; `/profile` redirects to login |
+| M1-03 | New nav: game entries (one now) from a static frontend registry (the `GET /v1/games` list joins in M1-10), archive link, language switcher, theme toggle, login or profile menu, all in the existing sidebar (a panel on phones); responsive for phone, tablet, laptop | FE | 1.0 | D1, M1-07 | works at 360, 768 and 1280 px; keyboard reachable |
+| M1-08 | Rename packages and databases (spec AC-8, owner answer to Q7): `daily-game-challenge-fe`, `daily-game-challenge-be`, `daily_game_challenge`, `daily_game_challenge_test` in package files, lockfiles, `.env.example`, compose, config and both CI files; short note for developers with an old local volume | BE, FE | 0.3 | none | both CI workflows green; no `item_list` left |
 | M1-04 | Remove the Lists feature: routes, nav item, quick-action cards, catalogue keys | FE | 0.3 | none | no `/lists` route; build passes |
-| M1-05 | MyList leftovers in docs and skills: both `CLAUDE.md` files, the two `dynamic-category-schema` skills, READMEs (short real ones), `CONTRACTS.md` title; the `item_list` database name stays (spec question Q7) | BE, FE, PL | 0.5 | none | no field_schema or item-list text; READMEs say how to run |
+| M1-05 | MyList leftovers in docs and skills: both `CLAUDE.md` files, the two `dynamic-category-schema` skills, READMEs (short real ones), `CONTRACTS.md` title | BE, FE, PL | 0.5 | none | no field_schema or item-list text; READMEs say how to run |
 | M1-06 | Home page becomes the game screen: `/` shows today's puzzle of the default game (a placeholder until the game exists); `/games/{slug}` and `/games/{slug}/{date}` are the same screen with another puzzle | FE | 0.5 | M1-07 | route structure agreed in the shell spec |
 | M1-07 | Site shell spec: nav, routing and the frontend side of the game module contract (the registry). Written: specs/01 (needs your answers to its open questions) | PL | 0.5 | D1 | spec agreed |
 | M1-09 | Spec for the backend side of the module contract and the puzzle model (`get_puzzle`, `submit_guess`, the tables) | PL | 0.5 | M1-07 | spec agreed before M1-10 |

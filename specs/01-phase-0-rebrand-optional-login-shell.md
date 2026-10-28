@@ -1,39 +1,38 @@
-# Spec: Phase 0, the Daily Game Challenge shell   |   Spec ID: SPEC-01   |   Status: draft
+# Spec: Phase 0, the Daily Game Challenge shell   |   Spec ID: SPEC-01   |   Status: agreed with the owner's answers (2026-10-28)
 
-Covers Milestone 1, Phase 0, tasks M1-01 to M1-07 (`MILESTONE-1.md` section 4). Written 2026-10-27.
+Covers Milestone 1, Phase 0, tasks M1-01 to M1-07 (`MILESTONE-1.md` section 4). Written 2026-10-27; open questions answered 2026-10-28.
 Touches both app repos and the platform docs, so it lives in the root `specs/` folder.
 
 ## In short
 
 1. The app is renamed from "MyList" to "Daily Game Challenge" everywhere a person can see it.
 2. Login becomes optional. Guests see the whole site; only `/profile` needs an account.
-3. A top bar replaces the sidebar: games, archive link, language, theme, and login or account menu.
+3. The sidebar stays (Q1) but its content changes: brand, games, archive link, and at the bottom language, theme, and login or account menu. Phones get a slim header with a sidebar button, the brand and "Log in".
 4. `/`, `/games/{slug}` and `/games/{slug}/{date}` show one game screen (a placeholder in Phase 0), chosen through a small game registry.
 5. The Lists feature and all MyList leftovers in docs, skills and config are removed.
 
-## [NEEDS CLARIFICATION: open questions for the owner]
+## Owner's answers (2026-10-28)
 
-The owner has not answered these. Each has a recommended default, and the acceptance criteria below are written for that default.
-If you choose differently, the listed criteria change. Q1 to Q11 come from the research report (its last section); Q12 to Q16 were found while writing this spec.
+The owner answered all 16 questions in the chat. "Accepted" means the recommended default was chosen. Two answers differ from the default (Q1, Q7); Q2 and Q9 were worded differently, and the acceptance criteria below follow the answers.
 
-| # | Question | Recommended default | Why | Criteria affected |
-|---|---|---|---|---|
-| Q1 | D1 layout: top bar or the existing sidebar? | Top bar | Decision 4 says "nav bar"; 1 to 8 games fit a bar; on phones a sidebar hides the games behind a button (research section 5) | AC-27 to AC-38 |
-| Q2 | What does `/lists` show after removal? | The normal "not found" screen | Cheapest; no user ever had lists data | AC-10 |
-| Q3 | A signed-in user opens a password reset link. Keep the token? | Yes: show the reset form | Today the token is lost silently (research section 2, verified in code) | AC-19 |
-| Q4 | What does `/games/{slug}/{future date}` show? `/games/{slug}/{today}`? | Future: not found. Today: same screen as `/games/{slug}`, no redirect, shared progress | Decision 5 (no redirect); M1-16 (past days only) | AC-41, AC-45 |
-| Q5 | Source of the nav's game list in Phase 0? | A static frontend registry. `GET /v1/games` joins in Phase 1 | M1-10 is Phase 1; Phase 0 must not wait for it | AC-28, AC-49 |
-| Q6 | May the public page start before `/auth/me` answers? What does a guest see if `/auth/me` fails on the network? | Yes, start at once. On a network failure the page still works; the account area offers "Retry" | Decision 3; speed of the first screen; a guest should never see an error page because of the account check | AC-21 to AC-24 |
-| Q7 | Rename the frontend package name `my-list-fe` and the database name `item_list`? | Keep both | Decision 26 keeps repo names; both are invisible to players; renaming the DB needs every developer to rebuild the local volume | AC-8 |
-| Q8 | Brand in Latin letters in Russian? Russian tagline? | Latin "Daily Game Challenge" in both languages. Tagline EN "Daily puzzle games", RU "Ежедневные игры-загадки" | Brands usually stay Latin in Russian UI (research section 7) | AC-1, AC-6 |
-| Q9 | Show "Sign up" in the phone header? | No. Phones show "Log in" only; the login page links to sign-up | Space at 360 px | AC-32 |
-| Q10 | Set the OpenAPI title now? | Yes: "Daily Game Challenge API". Small backend-first boundary change | Today it says "FastAPI"; it shows in the generated client | AC-7 |
-| Q11 | Nudge to sign up after the first win | Not in Phase 0. Belongs to M1-36 | No game exists yet | none |
-| Q12 | Where does the archive link go in Phase 0 (the archive screen is M1-35)? | `/games/{slug}/archive`, showing a short "coming soon" text inside the layout | M1-03 asks for the link now; the URL is reserved early | AC-31 |
-| Q13 | URL slug of the first game | `game-guesser` | Neutral, not the reference site's brand. Cheap to change before launch, costly after (shared links) | AC-56 |
-| Q14 | Where does logout go? | Stay on the page if it is public; from `/profile` go to `/` | Logging out should not throw a player out of a puzzle | AC-20 |
-| Q15 | Do the login and sign-up pages show the full top bar? | No. They keep their own centered layout, with the brand as a link to `/` | Fewer distractions in forms; matches today | AC-27 |
-| Q16 | Favicon: there is no logo yet | A simple temporary letter mark; the Vite logo is removed | M1-01 asks for a new favicon; a real logo is a design task | AC-5 |
+| # | Question | Answer | Criteria affected |
+|---|---|---|---|
+| Q1 | D1 layout: top bar or the existing sidebar? | **Keep the sidebar** (not the default) | AC-27 to AC-38 |
+| Q2 | What does `/lists` show after removal? | **The route is removed.** An unknown path shows the normal in-layout "not found" screen, which is the default's result | AC-10 |
+| Q3 | A signed-in user opens a password reset link. Keep the token? | Accepted: show the reset form | AC-19 |
+| Q4 | `/games/{slug}/{future date}` and `/games/{slug}/{today}` | Accepted: future is not found; today shows the same screen as `/games/{slug}`, no redirect | AC-41, AC-45 |
+| Q5 | Source of the game list in Phase 0 | Accepted: static frontend registry; `GET /v1/games` in Phase 1 | AC-28, AC-49 |
+| Q6 | Public page and `/auth/me` | Accepted: start at once; "Retry" in the account area on a network failure | AC-21 to AC-24 |
+| Q7 | Rename the frontend package name and the database name? | **Rename both now** (not the default). New names are my proposal, see AC-8 | AC-8, AC-57 |
+| Q8 | Brand and tagline in Russian | Accepted: Latin brand; tagline EN "Daily puzzle games", RU "Ежедневные игры-загадки" | AC-1, AC-6 |
+| Q9 | Where do "Log in" and "Sign up" go for a guest? (reworded because of Q1) | Accepted: bottom of the sidebar; below 768 px the slim header also shows "Log in" | AC-32 |
+| Q10 | OpenAPI title | Accepted: "Daily Game Challenge API", now | AC-7 |
+| Q11 | Sign-up nudge after the first win | Accepted: not in Phase 0 (M1-36) | none |
+| Q12 | Archive link in Phase 0 | Accepted: `/games/{slug}/archive` with "coming soon" | AC-31 |
+| Q13 | Slug of the first game | Accepted: `game-guesser` | AC-56 |
+| Q14 | Where logout goes | Accepted: stay on a public page; from `/profile` go to `/` | AC-20 |
+| Q15 | Auth pages and the layout | Accepted: own centered layout, brand links to `/` | AC-27 |
+| Q16 | Favicon | Accepted: temporary letter mark | AC-5 |
 
 ## Problem & Motivation
 
@@ -47,7 +46,7 @@ If you choose differently, the listed criteria change. Q1 to Q11 come from the r
 **Goals**
 - One name, "Daily Game Challenge", in the UI, page titles and docs.
 - Guests use every page except account pages. Signed-in players keep profile and password change.
-- A top bar that works at 360, 768 and 1280 px and with a keyboard.
+- A sidebar layout that works at 360, 768 and 1280 px and with a keyboard.
 - Stable, public URLs for the game screen: `/`, `/games/{slug}`, `/games/{slug}/{date}`, `/games/{slug}/archive`.
 - A thin game module contract: a registry from slug to a lazily loaded screen.
 - Safe return-after-login (no open redirect).
@@ -64,7 +63,7 @@ If you choose differently, the listed criteria change. Q1 to Q11 come from the r
 |---|---|---|---|
 | US-1 | visitor | to open the site and see today's game screen with no account | AC-12, AC-21, AC-39, AC-47 |
 | US-2 | visitor | to switch language and theme without an account | AC-4, AC-34, AC-55, AC-68 |
-| US-3 | visitor on a phone | a header that fits and lets me reach every game | AC-35, AC-36, AC-37, AC-64, AC-67 |
+| US-3 | visitor on a phone | a layout that fits and lets me reach every game | AC-35, AC-36, AC-37, AC-64, AC-67 |
 | US-4 | visitor with an old bookmark to `/lists` | a clear page, not an error or a login wall | AC-10 |
 | US-5 | visitor with a link to a past day | to open that day directly, or a clear message if the link is wrong | AC-41, AC-43 to AC-45 |
 | US-6 | player | to log in from the header and come back to the same page | AC-13 to AC-17, AC-32 |
@@ -89,12 +88,13 @@ Each group names its source. "Shell page" means any page inside the new layout (
 - **AC-5** The shipped frontend (catalogues, HTML page, public files) shall contain no "MyList" text, and the favicon shall not be the Vite template logo (Q16). *Verify: text search of the built output.*
 - **AC-6** The Russian catalogue shall keep the brand in Latin letters and shall translate only the tagline (Q8).
 - **AC-7** The backend API description shall have the title "Daily Game Challenge API" (Q10), and the frontend's generated client shall be regenerated from it in the same pass. *Verify: backend snapshot check and frontend API-types check both green.*
-- **AC-8** The frontend package name `my-list-fe`, the backend package name `my-list-be` and the database name `item_list` shall stay unchanged (Q7, decision 26).
+- **AC-8** The frontend package name shall become `daily-game-challenge-fe`, the backend package name `daily-game-challenge-be`, and the database names `daily_game_challenge` (development and CI) and `daily_game_challenge_test` (tests) (Q7). The names appear in `package.json`, `pyproject.toml` with both lockfiles, `.env.example`, `docker-compose.yml`, `app/core/config.py` and both CI files. Repo folder names, the GitHub repository names and the path `../my-list-be/openapi/openapi.json` stay (decision 26). *Verify: both CI workflows green; the text search of AC-57 finds no `item_list`.*
+- **AC-8b** The backend README and `CLAUDE.md` shall tell a developer with an existing local database that the old `item_list` volume is unused and how to create the new one (drop the old container volume and start the compose file again; local data is not migrated, it is test data only).
 
 ### M1-04 Remove Lists (SPEC section 1; M1-04)
 
 - **AC-9** The system shall have no `/lists` page, no Lists nav entry, no old home-page cards, and no catalogue texts for them, in either language.
-- **AC-10** WHEN anyone, signed in or not, opens `/lists`, the system shall show the in-layout "not found" screen with a link to today's puzzle (Q2), not the login page.
+- **AC-10** The system shall have no `/lists` route (Q2). WHEN anyone, signed in or not, opens `/lists`, the system shall show the same in-layout "not found" screen as for any unknown path, with a link to today's puzzle, not the login page.
 - **AC-11** The catalogue parity check (same keys in English and Russian) and the type check shall pass after the removal.
 
 ### M1-02 Optional login (decisions 3, 16; M1-02; research sections 2 and 4)
@@ -119,19 +119,21 @@ Each group names its source. "Shell page" means any page inside the new layout (
 
 ### M1-03 New nav (decisions 4, 5, 21, 27; M1-03; research sections 3 and 5)
 
-- **AC-27a** Every shell page shall have a top bar (Q1) with, in this visual and keyboard order: a skip link, the brand (a link to `/`), the game entries, the archive link, the language switcher, the theme toggle and the account area.
-- **AC-27b** The four auth pages shall keep their own layout and shall show the brand as a link to `/` (Q15).
+The sidebar stays (Q1). The existing sidebar component is reused; the content changes.
+
+- **AC-27a** Every shell page shall have the sidebar layout. The page shall start with a skip link. The sidebar shall hold, in this visual and keyboard order: the brand (a link to `/`), the game entries, the archive link, and at the bottom the language switcher, the theme toggle and the account area.
+- **AC-27b** The four auth pages shall keep their own layout without the sidebar and shall show the brand as a link to `/` (Q15).
 - **AC-28** The game entries shall come from the frontend game registry, in registry order (Q5). Phase 0 shows exactly one entry.
 - **AC-29** WHEN the player selects a game entry, the system shall show `/games/{slug}` for today inside the same layout, without a full page reload.
 - **AC-30** The system shall mark exactly one game entry as the current page: the game being shown, on `/` (default game), `/games/{slug}` and `/games/{slug}/{date}`.
 - **AC-31** The archive link shall go to `/games/{slug}/archive` for the game being shown; in Phase 0 that page shows a short "coming soon" text inside the layout (Q12).
-- **AC-32** WHILE signed out, the account area shall show "Log in", and "Sign up" at widths of 768 px and more; below 768 px it shall show "Log in" only (Q9). Both carry the current page as `redirect`.
-- **AC-33** WHILE signed in, the account area shall show a menu button whose accessible name includes the account's email; the menu shall offer "Profile" and "Log out".
+- **AC-32** WHILE signed out, the account area at the bottom of the sidebar shall show "Log in" and "Sign up". Below 768 px the slim header shall also show "Log in" (Q9). Every such control carries the current page as `redirect`.
+- **AC-33** WHILE signed in, the account area shall show a menu button whose accessible name includes the account's email; the menu shall offer "Profile" and "Log out". Below 768 px the slim header shall show the same menu button instead of "Log in".
 - **AC-34** The language switcher and the theme toggle shall work for guests and signed-in users; a switch shall keep the URL and shall not reload the page.
-- **AC-35** At widths of 768 px and more the header shall be one row. Below 768 px it shall be two rows: brand, language, theme and account on the first; games and archive link on the second.
-- **AC-36** WHERE the game entries do not fit their row, the row shall scroll sideways inside itself (never the page), shall keep the current entry in view, and an "All games" control shall open the full list in a panel. *Verify: Playwright with a test registry of 8 entries (M1-50).*
-- **AC-37** The header shall stay at the top while the page scrolls; WHILE the viewport is less than 500 CSS px tall, the header shall scroll away with the page.
-- **AC-38** The sidebar and its remembered open or closed state shall be removed (Q1).
+- **AC-35** At widths of 768 px and more the sidebar shall be open beside the content. Below 768 px a slim header of one row shall show the sidebar button, the brand and the account control, and the sidebar shall open as a panel over the page.
+- **AC-36** WHERE the game entries do not fit the sidebar's height, the entry list shall scroll inside itself, never the page, and shall keep the current entry in view. *Verify: Playwright with a test registry of 8 entries (M1-50).*
+- **AC-37** The sidebar shall stay in place while the page scrolls, and the slim header shall stay at the top; WHILE the viewport is less than 500 CSS px tall, the slim header shall scroll away with the page.
+- **AC-38** The sidebar's Lists entry and old home entry shall be removed. The sidebar component and its remembered open or closed state (the existing `sidebar_state` cookie) shall stay.
 
 ### M1-06 The home page becomes the game screen (decisions 4, 5, 7, 10, 20; M1-06; research section 4)
 
@@ -172,29 +174,29 @@ This is the shape of the boundary between the shell and a game module, not how e
 
 ### M1-05 Leftovers in docs, skills and config (SPEC section 10 step 3; M1-05; research section 1)
 
-- **AC-57** A text search shall find no "MyList", "item-list", "field_schema", "custom_attributes" or "dynamic-category-schema" in: the root `CLAUDE.md` and `CONTRACTS.md`, both repo `CLAUDE.md` files, both repos' skills, both READMEs, and the backend's `specs/password-update.md`. Allowed: history text in `SPEC.md`, `ARCHITECTURE.md`, `MILESTONE-1.md`, and repo folder names.
+- **AC-57** A text search shall find no "MyList", "item-list", "item_list", "field_schema", "custom_attributes" or "dynamic-category-schema" in: the root `CLAUDE.md` and `CONTRACTS.md`, both repo `CLAUDE.md` files, both repos' skills, both READMEs, and the backend's `specs/password-update.md`. Allowed: history text in `SPEC.md`, `ARCHITECTURE.md`, `MILESTONE-1.md`, repo folder names and the `my-list-be` path in the frontend's Orval config and CI.
 - **AC-58** Both `dynamic-category-schema` skills shall be deleted; other skills shall stay, with their references to it removed.
 - **AC-59** Each repo README shall say in a few lines what the repo is (part of Daily Game Challenge) and how to install, run and test it.
-- **AC-60** The frontend `CLAUDE.md` shall describe the current shell (optional login, top bar, game registry) and shall not name files that do not exist.
+- **AC-60** The frontend `CLAUDE.md` shall describe the current shell (optional login, sidebar layout, game registry) and shall not name files that do not exist.
 
 ### Cross-cutting (decisions 21, 27; SPEC 3.1, 3.6; research sections 5, 8, 9)
 
 - **AC-61** Every user-visible text in the shell shall come from the catalogues, present in English and Russian; no text is written directly in a component.
 - **AC-62** The skip link shall be the first focusable element, shall become visible on focus, and shall move focus to the main content.
-- **AC-63** Each shell page shall have one banner (the header), one main area, and a games navigation region labelled from the catalogue ("Games"; the label does not contain the word "navigation").
-- **AC-64** Every header control shall be at least 24 by 24 CSS px; touch controls shall aim for 44 px height where the row allows.
-- **AC-65** The sticky header shall never fully cover the element that has keyboard focus.
-- **AC-66** The account menu shall open with Enter, Space or Arrow Down, and Escape shall close it and return focus to its button. The "All games" panel shall keep focus inside while open and close on Escape.
+- **AC-63** Each shell page shall have one main area and a games navigation region labelled from the catalogue ("Games"; the label does not contain the word "navigation"). Below 768 px the slim header shall be the banner.
+- **AC-64** Every sidebar and header control shall be at least 24 by 24 CSS px; touch controls shall aim for 44 px height where the row allows.
+- **AC-65** The slim header shall never fully cover the element that has keyboard focus.
+- **AC-66** The account menu shall open with Enter, Space or Arrow Down, and Escape shall close it and return focus to its button. The phone sidebar panel shall keep focus inside while open, close on Escape and return focus to the sidebar button.
 - **AC-67** At widths of 320, 360, 768 and 1280 CSS px, no shell page shall scroll sideways at page level.
 - **AC-68** IF browser storage is blocked, THEN the app shall still render, and theme and language shall work for the open tab without being remembered.
-- **AC-69** Phase 0 shall store nothing new in the browser beyond the existing `language` and `theme` keys and the session cookie.
+- **AC-69** Phase 0 shall store nothing new in the browser beyond the existing `language` and `theme` keys, the `sidebar_state` cookie and the session cookie.
 - **AC-70** No new screen or message shall reveal whether an email has an account, beyond what the backend already reveals (409 on sign-up).
 
 ## Edge cases
 
 | Case | Expected | AC |
 |---|---|---|
-| Bookmarked `/lists` | In-layout "not found", link to today's puzzle | AC-10 |
+| Bookmarked `/lists` | Route removed; in-layout "not found", link to today's puzzle | AC-10 |
 | Old session cookie the backend no longer knows | `/auth/me` gives 401, visitor is a guest, no error | AC-23 |
 | `/auth/me` slow | Page shows at once; account area shows a placeholder | AC-21 |
 | `/auth/me` network failure | Public page works; "Retry" in account area | AC-24 |
@@ -202,9 +204,9 @@ This is the shape of the boundary between the shell and a game module, not how e
 | Storage blocked (private mode) | App renders; choices last for the tab only | AC-68 |
 | Reset link `?token=` while signed in | Reset form shown, token kept | AC-19 |
 | `redirect` pointing elsewhere | Ignored, go to `/` | AC-15 to AC-17 |
-| 360 px phone, or 320 px | Two-row header, no page-level side scroll | AC-35, AC-67 |
+| 360 px phone, or 320 px | Slim header, sidebar as a panel, no page-level side scroll | AC-35, AC-67 |
 | Phone in landscape | Header scrolls away (less than 500 px tall) | AC-37 |
-| 8 games later | Row scrolls inside itself; "All games" panel | AC-36 |
+| 8 games later | The entry list scrolls inside the sidebar | AC-36 |
 | Unknown slug, wrong case slug | "Unknown game" | AC-43 |
 | Invalid or future date | "No puzzle for this date" | AC-44, AC-45 |
 | Device in UTC-5 at 23:30 local | "Today" is the next UTC day | AC-46 |
@@ -268,18 +270,18 @@ Required test table for `redirect` (base `http://localhost:5173`; research secti
 - The real archive screen (M1-35), countdown (M1-37), stats, share, sign-up nudge (M1-36), guest merge (M1-15, M1-36).
 - `GET /v1/games` (M1-10). The nav switches to it in Phase 1.
 - Meta description, Open Graph, share image (M1-47); legal footer (M1-46); web manifest.
-- Renaming repo folders, package names or the database (decision 26, Q7).
+- Renaming repo folders or the GitHub repositories (decision 26). Package and database names are renamed in AC-8.
 - Saving language on the account; a third language; right-to-left support.
 
 ## Definition of done for Phase 0
 
 **The owner can check in a browser (signed out, then signed in):**
-1. `/` shows the top bar and the "coming soon" game screen with today's UTC date. No login page.
+1. `/` shows the sidebar and the "coming soon" game screen with today's UTC date. No login page.
 2. The tab title and header say "Daily Game Challenge" in English and in Russian. No "MyList" anywhere.
 3. `/lists` shows "not found" inside the layout. `/games/game-guesser/2099-01-01` and `/games/nope` show their "not found" texts.
 4. `/profile` while signed out goes to login; after login it comes back to `/profile`.
-5. Log out on `/` stays on `/`. The header shows "Log in".
-6. At 360, 768 and 1280 px (browser dev tools) the header fits, nothing scrolls sideways, and Tab moves through skip link, brand, game, archive, language, theme, account.
+5. Log out on `/` stays on `/`. The account area shows "Log in".
+6. At 360, 768 and 1280 px (browser dev tools) the layout fits, nothing scrolls sideways, and Tab moves through skip link, brand, game, archive, language, theme, account (on a phone: the sidebar button first, then the same order inside the panel).
 7. Language switch keeps the page and URL; the tab title changes language.
 
 **CI must show (both repos green):**
@@ -304,9 +306,9 @@ Required test table for `redirect` (base `http://localhost:5173`; research secti
 
 ## Task dependencies and order
 
-1. **Q1 (D1) and the other open questions first.** M1-02 and M1-03 depend on Q1.
+1. **Questions Q1 to Q16 are answered** (2026-10-28). Q1 and Q7 changed the plan: the sidebar stays, and the rename (AC-8) touches both repos and both CI files.
 2. **M1-07** (this spec) agreed before M1-02, M1-03 and M1-06.
-3. **M1-01 + M1-04 in one frontend PR.** They change the same catalogue files and the same nav code.
+3. **M1-01 + M1-04 in one frontend PR.** They change the same catalogue files and the same nav code. The package and database rename (AC-8) is a separate pair of small PRs (backend first: compose, CI, config, lockfile; then the frontend `package.json`), so a rename mistake does not block the product work.
 4. **Q10 (API title):** backend PR first (title and snapshot), then the frontend regeneration and `CONTRACTS.md`, in the same pass.
 5. **M1-02** next. Until M1-06 lands, `/` needs a neutral placeholder with no "lists" text (research section 9).
 6. **M1-03 and M1-06** after M1-02. With the static registry (Q5) they no longer wait for M1-10 or M1-30.
