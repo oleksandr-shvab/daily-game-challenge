@@ -54,19 +54,22 @@ The feature spec for this phase is [specs/01-phase-0-rebrand-optional-login-shel
 | M1-07 | Site shell spec: nav, routing and the frontend side of the game module contract (the registry). Written: specs/01 (needs your answers to its open questions) | PL | 0.5 | D1 | spec agreed |
 | M1-09 | Spec for the backend side of the module contract and the puzzle model (`get_puzzle`, `submit_guess`, the tables) | PL | 0.5 | M1-07 | spec agreed before M1-10 |
 
-### Phase 1: backend core for games (about 5 days)
+### Phase 1: backend core for games (about 6 days)
+
+The feature spec for this phase is [specs/02-phase-1-backend-core-games.md](specs/02-phase-1-backend-core-games.md) (SPEC-02, agreed with the owner's answers of 2026-11-02). It also covers M1-09 and M1-41, which moved here from Phase 4.
 
 | ID | Task | Repo | Est. | Depends | Done when |
 |---|---|---|---|---|---|
 | M1-10 | Game registry and puzzle model: tables `game`, `puzzle (game, variant, date)` with a status flow (draft, in_review, approved, scheduled), Alembic migration, unique key; `GET /v1/games`, `GET /v1/games/{slug}/puzzles/today` returning only step 1 | BE | 1.0 | M1-07 | migration passes the CI migrations job; tests |
-| M1-11 | Title table and autocomplete: `title` (name, franchise, year) with Postgres trigram search, `GET /v1/games/{slug}/titles?q=` returning up to 200 fuzzy matches (title and franchise only, no answers) | BE | 1.0 | M1-10 | typo "zlda" finds Zelda; 200-result cap |
+| M1-11 | Title table and autocomplete: `title` (name, franchise, year) with Postgres trigram search, `GET /v1/games/{slug}/titles?q=` returning up to 200 fuzzy matches (title, franchise and year, no answers; SPEC-02 Q15) | BE | 1.0 | M1-10 | typo "zlda" finds Zelda; 200-result cap |
 | M1-12 | Guess endpoint: `POST /v1/games/{slug}/puzzles/{date}/guesses` checks a guess on the server, returns correct or not, the franchise flag, the next step's clue; a skip is a guess; the answer is returned only when the game ends | BE | 1.5 | M1-10, M1-11 | tests for win, lose, skip, franchise match; answer absent before the end |
 | M1-13 | Guest and account progress: a guest sends earlier guesses with each request (stateless, decision 16); an account's progress is stored (`progress` table with a unique key) and authoritative | BE | 1.0 | M1-12 | same result either way; forged history cannot change an account |
 | M1-14 | Stats and streak: played, wins, current and max streak with the 3-day grace and "finishing counts" rules (decisions 15, 51), guess distribution; archive plays count to stats only (decision 14) | BE | 1.0 | M1-13 | tests for streak grace and archive rules |
 | M1-15 | Guest merge: one idempotent endpoint takes local results and merges them into the account | BE | 0.5 | M1-13 | replaying the request changes nothing |
 | M1-16 | Archive endpoints: list past puzzles with the player's state per puzzle (paged), play a past puzzle | BE | 0.5 | M1-13 | past days only, never today or future |
-| M1-17 | Clock endpoint or header for the countdown to 00:00 UTC | BE | 0.1 | none | the client can show hh:mm:ss |
-| M1-18 | Clue images: storage interface (local folder in dev, S3-compatible in production), short-lived signed URLs issued only for earned steps | BE | 1.0 | M1-12 | step 3 image URL is not returned at step 1 |
+| M1-17 | Clock endpoint `GET /v1/clock` for the countdown to 00:00 UTC | BE | 0.1 | none | the client can show hh:mm:ss |
+| M1-18 | Clue media: storage interface (local folder in dev, S3-compatible in production), short-lived signed URLs issued only for earned steps, Range requests for the step-6 video (SPEC-02 Q4) | BE | 1.3 | M1-12 | step 3 image URL is not returned at step 1; the step-6 clip plays through its signed link |
+| M1-41 | CSRF Origin check (Origin, falling back to Referer) on unsafe methods, JSON-only bodies; no custom header (SPEC-02 Q13, Q18; moved from Phase 4) | BE, FE | 0.7 | none | cross-origin POST is refused with 403 `csrf_origin_mismatch` |
 
 ### Phase 2: the game in the browser (about 5 days)
 
@@ -87,17 +90,16 @@ The feature spec for this phase is [specs/01-phase-0-rebrand-optional-login-shel
 |---|---|---|---|---|---|
 | M1-20 | IGDB access and a client in the puzzle script (title list, franchise, year, platform, genre, developer, critic score, screenshots); terms checked at signup | BE (scripts) | 1.0 | D2 | script lists 5 games with all fields |
 | M1-21 | Title list import: the searchable list of games (thousands) with clean franchise names, near-duplicates removed | BE (scripts) | 0.7 | M1-20, M1-11 | autocomplete returns clean titles |
-| M1-22 | Puzzle builder: filters (popular enough, enough screenshots, not a recent answer or series), image processing offline (pixelated first crop, six clues, WebP sizes), content-addressed private storage, secret seed salt kept outside the repo (public repo) | BE (scripts) | 1.5 | M1-20, M1-18 | `--dry-run` and idempotent re-run; images in storage |
+| M1-22 | Puzzle builder: filters (popular enough, enough screenshots, not a recent answer or series), media processing offline (pixelated first crop, five WebP images, a muted looping step-6 clip in MP4 with an optional WebM and a WebP poster frame, SPEC-02 Q4 and Q20), content-addressed private storage, secret seed salt kept outside the repo (public repo) | BE (scripts) | 1.5 + video (not yet estimated) | M1-20, M1-18 | `--dry-run` and idempotent re-run; images in storage |
 | M1-23 | Source credit per puzzle (image source URL kept) and the credits page after a game ends (SPEC 3.7) | BE, FE | 0.5 | M1-22 | credits visible after the game |
 | M1-24 | Review queue: a CLI or a tiny local page to approve or reject drafts; schedule 30 or more puzzles | BE (scripts) | 0.6 | M1-22, D5 | 30 approved, scheduled puzzles |
 | M1-25 | Alert when the scheduled buffer drops under 7 days and when tomorrow's puzzle is missing | BE | 0.3 | M1-24 | the check runs and exits non-zero |
 
-### Phase 4: production hardening (about 5 days)
+### Phase 4: production hardening (about 4.3 days)
 
 | ID | Task | Repo | Est. | Depends | Done when |
 |---|---|---|---|---|---|
 | M1-40 | Dockerfiles for both apps (multi-stage, non-root), production Compose, Caddy (same origin, security headers, CSP with `wasm-unsafe-eval` only if needed, `index.html` no-cache, hashed assets immutable, `/healthz` and `/readyz` hidden) | PL, BE, FE | 1.5 | none | the whole site runs from Compose on this laptop |
-| M1-41 | CSRF Origin check and a custom header on unsafe methods | BE, FE | 0.7 | none | cross-origin POST is refused |
 | M1-42 | Rate limits (login, register, forgot-password, guess endpoints) with `limits` and Redis; `429` with `Retry-After` | BE | 0.8 | none | tests; limit values in settings |
 | M1-43 | Real email sending through a queue (arq behind a thin interface), SPF, DKIM and DMARC on the sending subdomain | BE | 1.0 | D3, D4 | a reset email arrives in Gmail and a Russian mailbox |
 | M1-44 | Account deletion and data export (`DELETE /v1/me`, `GET /v1/me/export`), audit-log table | BE, FE | 1.0 | none | deletion removes the account and sessions |
@@ -117,12 +119,12 @@ The feature spec for this phase is [specs/01-phase-0-rebrand-optional-login-shel
 
 ## 5. Order and the critical path
 
-1. **Start now (no blockers):** Phase 0 (M1-01, M1-04, M1-05, M1-07), then M1-10 to M1-18 in the backend.
+1. **Start now (no blockers):** Phase 0 (M1-01, M1-04, M1-05, M1-07), then M1-41 and M1-10 to M1-18 in the backend.
 2. **In parallel:** M1-20 to M1-25 need D2 (IGDB account) and D5. Ask for the Twitch developer credentials early, because content is the slowest part.
 3. **Then** the frontend game (Phase 2), then hardening and launch readiness.
 4. The hosting decision D3 can wait until Phase 4; everything before it runs on this laptop.
 
-Rough total, if tasks run one after another: about 25 working days (Phase 0: 3, Phase 1: 5, Phase 2: 5, Phase 3: 4, Phase 4: 5, Phase 5: 3). Phases 2 and 3 can overlap, so about 22 days is realistic. These are estimates.
+Rough total, if tasks run one after another: about 25 working days (Phase 0: 3, Phase 1: 6, Phase 2: 5, Phase 3: 4 plus the step-6 video work, Phase 4: 4.3, Phase 5: 3). Phases 2 and 3 can overlap, so about 22 days is realistic. These are estimates.
 
 ## 6. Risks specific to Milestone 1
 
