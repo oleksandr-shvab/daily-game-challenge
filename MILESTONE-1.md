@@ -54,7 +54,7 @@ The feature spec for this phase is [specs/01-phase-0-rebrand-optional-login-shel
 | M1-07 | Site shell spec: nav, routing and the frontend side of the game module contract (the registry). Written: specs/01 (needs your answers to its open questions) | PL | 0.5 | D1 | spec agreed |
 | M1-09 | Spec for the backend side of the module contract and the puzzle model (`get_puzzle`, `submit_guess`, the tables) | PL | 0.5 | M1-07 | spec agreed before M1-10 |
 
-### Phase 1: backend core for games (about 6 days)
+### Phase 1: backend core for games (about 8.6 days by the task table; the backend plan estimates 8.0)
 
 The feature spec for this phase is [specs/02-phase-1-backend-core-games.md](specs/02-phase-1-backend-core-games.md) (SPEC-02, agreed with the owner's answers of 2026-11-02). It also covers M1-09 and M1-41, which moved here from Phase 4.
 
@@ -124,7 +124,7 @@ The feature spec for this phase is [specs/02-phase-1-backend-core-games.md](spec
 3. **Then** the frontend game (Phase 2), then hardening and launch readiness.
 4. The hosting decision D3 can wait until Phase 4; everything before it runs on this laptop.
 
-Rough total, if tasks run one after another: about 25 working days (Phase 0: 3, Phase 1: 6, Phase 2: 5, Phase 3: 4 plus the step-6 video work, Phase 4: 4.3, Phase 5: 3). Phases 2 and 3 can overlap, so about 22 days is realistic. These are estimates.
+Rough total, if tasks run one after another: about 28 working days (Phase 0: 3, Phase 1: 8.6, Phase 2: 5, Phase 3: 4 plus the step-6 video work, Phase 4: 4.3, Phase 5: 3). Phases 2 and 3 can overlap, so about 25 days is realistic. These are estimates.
 
 ## 6. Risks specific to Milestone 1
 
