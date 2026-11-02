@@ -1,6 +1,6 @@
 # Spec: Daily Game Challenge
 
-Status: draft 21. This is the general site spec. It covers the shell, accounts, progress, archive and how games plug in. Each game (starting with the game guesser) and each larger feature gets its own smaller spec later (backend in `my-list-be/specs/`, frontend in `my-list-fe/docs/specs/`, and specs that cross both repos in the platform folder's `specs/`).
+Status: draft 22. This is the general site spec. It covers the shell, accounts, progress, archive and how games plug in. Each game (starting with the game guesser) and each larger feature gets its own smaller spec later (backend in `my-list-be/specs/`, frontend in `my-list-fe/docs/specs/`, and specs that cross both repos in the platform folder's `specs/`).
 
 Legend: **[decided]** was stated by the project owner. **[proposed]** is a suggestion, not yet agreed. **[open]** needs a decision.
 
@@ -354,6 +354,105 @@ Fit with the module contract (3.3) **[proposed]**:
 | Score | The number of guesses used (decision 9) |
 
 First version **[decided]** (decision 50): angle puzzles of the early and middle tiers (triangles, straight lines, parallel lines, isosceles triangles), and length puzzles from the Pythagorean theorem and similar triangles, plus the radius of the circle through a right triangle (it needs one circle rule). Other circle rules, the Sunday special and other exercise types (areas, "which figure is impossible") come later. **[proposed]** At least 60 puzzles generated and checked before launch. A generator spike comes first (section 10, step 7).
+
+### 3.13 Roles and admin tools **[proposed]**
+
+The owner's idea (2026-10-30): signed-in users get a role. An admin gets extra tools for testing: play a puzzle, reset their own progress and play it again, and open the next days' puzzles before players get them. More admin tools may come later. This section is research and proposals; nothing here is decided or built. Open questions 2 to 5 (section 9) need answers before a feature spec.
+
+Decision 11 ("No admin UI to start with") still holds under this proposal: puzzles are still made, reviewed and scheduled by scripts. What changes is that a few controls appear on the normal game screen for an admin. It is not an admin panel.
+
+**What exists today (checked in the code, 2026-10-30).** The `users` table has `id`, `email`, `hashed_password`, `is_active`, `created_at`, `updated_at`, and no role. `get_current_user` (`my-list-be/app/api/deps.py`) reads the session from Redis and then loads the user from Postgres on every request, so a role stored on the user is read fresh each time and a change applies at the next request. `GET /auth/me` returns `UserRead` (id, email, is_active, created_at). The frontend keeps the signed-in state only in the `/auth/me` query and drops every other cached query on logout (`signOutLocally`), so puzzle data an admin loaded does not stay in the tab after logout. There is no puzzle or progress code yet (M1-10, M1-13).
+
+Terms used here. A **role** is a name stored on the account (`player`, `admin`). A **permission** is one thing an account may do, such as `puzzle.preview_upcoming`; the code maps each role to its permissions. An **upcoming** puzzle is a scheduled puzzle whose date is after today (UTC). A **test play** is progress that never counts toward streaks, boards or community stats.
+
+**Role model.**
+
+| Option | For | Against |
+|---|---|---|
+| **A `role` text column with a CHECK constraint, permissions mapped in code (recommended)** | One column and one migration. Checks name permissions, not roles, so adding a role (a reviewer, a tester) changes one map in code, reviewed in a pull request | Changing what a role may do needs a deploy, which is fine with one owner |
+| An `is_admin` boolean | Smallest | A second role needs another column, and flags can contradict each other |
+| Role and permission tables | Permissions change without a deploy | Needs a UI or scripts to manage them; nothing here needs that |
+| A Postgres native `enum` for the role | The database knows the values | Postgres can add an enum value but not remove one, and a value added inside a transaction cannot be used before the commit; Alembic's autogenerate does not see value changes, so each change is a hand-written migration. A text column with a CHECK avoids all three |
+| FastAPI `Security` scopes | Built in | Built around OAuth2 tokens and the docs' Authorize dialog; with a session cookie it is an ordinary dependency anyway |
+
+Details of the recommended model:
+- `users.role` is `VARCHAR(20) NOT NULL DEFAULT 'player'` with `CHECK (role IN ('player', 'admin'))`. Existing accounts become players through the default.
+- One permission map in code: `player` has none, `admin` has all. The first permissions are `puzzle.preview_upcoming` and `progress.reset_own`; candidates for later are in the table further down.
+- One dependency, `require_permission(...)`, built on `CurrentUser`: 401 for a guest, 403 with the new code `forbidden` for a player. Every admin route uses it and no route checks a role by hand. This follows the OWASP authorization guidance: deny by default and check every request on the server.
+- Rules about a particular object stay in the service, not in the role: "only your own progress", "an upcoming puzzle, not a draft". OWASP prefers attribute checks to role-only checks; here the role grants a capability and the service checks the object.
+- The API never sets a role. Registration always creates a player, and a `role` field in a register body is ignored (a test proves it; OWASP API3:2023 covers this mass-assignment case). An account becomes an admin through a script, `uv run python scripts/set_role.py --email <email> --role admin` (in production through `docker compose exec`). Removing the role also revokes that account's sessions.
+- `/auth/me` returns `role` and `permissions`. The frontend shows admin controls by permission, never by role name. Hiding controls only makes the UI clearer; the server check is what protects the data.
+
+**Release of upcoming puzzles and admin preview.** ARCHITECTURE.md section 9 already proposes how a puzzle reaches players, which answers "make it available on time": the day's puzzle is a query on the current UTC date. A scheduled puzzle becomes visible at 00:00 UTC because its date becomes today; no job flips a flag at midnight, so a failed job cannot hold a puzzle back. The 23:30 UTC job only warms caches and alerts when tomorrow's puzzle is missing. The stored status `published` in that flow is then redundant (published means scheduled with a date of today or earlier); I propose dropping it.
+
+Who may open a puzzle is decided in one function in the puzzle service. Every puzzle route uses it: today's puzzle, a puzzle by date, the archive, clue images and guesses.
+
+| Puzzle | Guest or player | Admin |
+|---|---|---|
+| Scheduled, dated today or earlier | yes | yes |
+| Scheduled, dated in the future | 404, the same as a missing puzzle (ARCHITECTURE.md section 5: a future puzzle must not be revealed) | yes, within the preview window (open question 3) |
+| Draft, in review, or approved but not scheduled | 404 | 404 to start with (open question 3) |
+
+- Admins play upcoming puzzles through the same routes and the same code as players (`GET /v1/games/{slug}/puzzles/{date}` and the guess route). That is what makes the test worth something: there is no separate admin copy of a game that could behave differently.
+- A list for admins, `GET /v1/admin/games/{slug}/puzzles?from=&to=`, gives each date, variant, status and whether the admin has played it. For an admin the archive screen shows these days at the top, marked "upcoming, opens in N days".
+- Preview means play, not reveal: the answer stays hidden from admins too until their game ends. An answer key for reviewing is a later permission.
+- Caching is the main leak risk. ARCHITECTURE.md sections 7 and 9 propose a public, cached step-1 view and a Redis warm-up keyed by date. Rules: a response about an upcoming puzzle carries `Cache-Control: private, no-store`; the public cache and the warm-up are only ever filled for dates up to today; an upcoming puzzle's images go out only as short-lived signed URLs, and the long-cache public URL starts on the puzzle's date; image keys are random, never date-based (already in ARCHITECTURE.md section 10). A test asks the public routes for tomorrow as a guest and as a player and expects a 404 with nothing cached.
+- On an upcoming puzzle the countdown reads "opens for players in hh:mm:ss".
+
+Preview window and buffer are two numbers. The owner wrote "prepare challenges 3 days ahead". ARCHITECTURE.md section 9 and MILESTONE-1 plan a larger buffer: an alert when fewer than 7 days are scheduled, and 30 puzzles scheduled before launch. The buffer is how far ahead puzzles exist; the preview window is how far ahead an admin may open them. I propose keeping the 7-day buffer alert; the window is open question 3.
+
+**Test plays and reset.**
+- A **test play** flag sits on the progress row and is set when the row is written. Proposed (open question 4): every play by an admin account is a test play, because an admin can see upcoming puzzles and ranking them would be unfair. The owner plays for real with a separate player account.
+- Test plays never count toward streaks, the leaderboard or community stats; they are never added to those counters at all. They do appear in the admin's own stats screen, marked as test, so that screen can be tested too.
+- The flag is stored, not derived from the current role, so removing someone's role later does not move their old test plays onto the boards.
+- `DELETE /v1/admin/games/{slug}/puzzles/{date}/progress?variant=` deletes the caller's own progress for one puzzle and returns 204, also when there was none (repeating it changes nothing). It needs `progress.reset_own`. Nobody can reset another account's progress.
+- Game-specific rows (guesses, the hidden-character game's attempts and clicks, the playable challenge's runs) reference the progress row with `ON DELETE CASCADE`, so no game can forget its part of a reset. The module contract (3.3) gains nothing for most games; a game that keeps state outside those tables (for example in Redis) adds a `reset(puzzle, user)` hook.
+- After a reset the user's stats for that game are recomputed by one function, `recompute_stats(user, game)`, which the guest merge (M1-15) and data fixes can use as well. Test plays never reached the counters or the boards, so nothing else needs undoing.
+- A reset lifts per-game limits on purpose: the playable challenge's one attempt a day (decision 54) and the hidden-character game's "first attempt counts" (3.11) start over for an admin's test play. Test runs still go through replay verification, so the verifier gets tested too.
+- Reset of all of an admin's progress for a game is easy to add later; it is not proposed now.
+- To test as a guest, an admin opens a private browser window; no "view as guest" feature is needed.
+
+**Security.** An admin can see tomorrow's answers by playing, which makes an admin account the most valuable account on the site.
+- A second factor for admin accounts (open question 5). The OWASP MFA cheat sheet says to require MFA for administrative users and to prefer phishing-resistant authenticators (passkeys), with TOTP as the baseline. Proposal: TOTP with recovery codes, set up from the profile page; until it is set up, admin permissions are refused with 403 `second_factor_required`. Passkeys later.
+- A step-up "admin mode" (re-enter the password to unlock admin tools for a few hours, as in GitLab's admin mode, whose design used 6 hours, or GitHub's sudo mode) is not proposed now: it guards against a stolen session, and a second factor covers most of that.
+- The CSRF Origin check (M1-41) ships before any data-changing admin route reaches production.
+- Every admin action is logged with user id, action, game, date and request id (ids, not emails, ARCHITECTURE.md section 9), and goes into the planned audit-log table (ARCHITECTURE.md section 7) once it exists.
+- Tests for every admin route: guest 401, player 403 (404 on the shared puzzle routes), admin 200; and a test with an injected clock at 23:59:59 and 00:00:00 UTC for the day an upcoming puzzle opens.
+- Both repos are public, so the permission map and the route names are public. That is fine: the protection is the server check, not secrecy.
+
+**Frontend.**
+- A `useCan(permission)` hook reads `permissions` from the existing session query, with no second copy of the state.
+- An admin bar on the game screen, shown only with a permission: "test play, not counted", the reset button with a confirmation dialog (it then refetches that puzzle), and a day switcher that can go forward into the preview window.
+- Upcoming days at the top of the archive list for admins. Anyone else who opens a future URL sees the normal not-found screen.
+- The admin components are their own lazy chunk. They hold no secrets (answers never reach the browser before the game ends); the split only keeps the main bundle small.
+- New texts and the error codes `forbidden` and `second_factor_required` in English and Russian.
+
+**Contract changes** (`CONTRACTS.md`, in the same pass as the code): `role` and `permissions` in `/auth/me`; the error codes `forbidden` (403) and later `second_factor_required` (403); future puzzles are a 404 for anyone but an admin; the `/v1/admin/...` routes; upcoming-puzzle responses are `private, no-store`.
+
+**Later admin tools** (candidates, not proposed now):
+
+| Tool | Permission | Use | Note |
+|---|---|---|---|
+| Games in development visible only to admins | `game.preview_unreleased` | Try the next game in production before it appears in the nav | Cheap and worth it once a second game is near; `GET /v1/games` lists it for admins only |
+| Open drafts and approve or reject them in the app | `puzzle.review` | Replaces the CLI review queue (M1-24) | Changes decision 11; the CLI comes first |
+| Answer key on a puzzle | `puzzle.reveal_answer` | Faster review without playing | Makes an admin session worth more to an attacker |
+| Withdraw a puzzle and put a spare in its place | `puzzle.withdraw` | The "bad puzzle today" runbook | A script first |
+| Remove a board entry, deactivate an account | `leaderboard.moderate`, `user.manage` | Cheating and abuse | Once there are players |
+| Pretend today is another date | none in production | Test the day change and streaks | Belongs in tests with an injected clock, at most a setting in local and staging; never in production |
+| Narrower roles: `reviewer` (preview and review), `tester` (reset only) | | A helper who should not see everything | The permission map makes this a code change |
+
+**Where it fits in Milestone 1** (estimates in working days):
+
+| Step | Repo | Est. | Depends on |
+|---|---|---|---|
+| Role column and migration, permission map, `require_permission`, `set_role` script, `role` and `permissions` in `/auth/me`, tests | BE | 0.5 | nothing, can start now |
+| Regenerated client, `useCan`, the new error codes | FE | 0.2 | the step above |
+| Visibility rule, preview of upcoming puzzles, admin puzzle list, caching rules | BE | 0.7 | M1-10, M1-18 |
+| Test-play flag, reset route, cascades, stats recompute | BE | 0.5 | M1-13, M1-14 |
+| Admin bar, reset, day switcher, upcoming days in the archive | FE | 0.8 | the two steps above, M1-30, M1-35 |
+| TOTP for admin accounts | BE, FE | 1.5 | before launch, if open question 5 says so |
+
+That is about 2.7 days without the second factor and about 4.2 days with it.
 
 ## 4. Reference: guessthe.game
 
@@ -813,6 +912,10 @@ Lengths **[proposed, untested]**: the Pythagorean theorem is quadratic and simil
 ## 9. Open questions
 
 1. Playable challenge: does a run that started before midnight and ended after it belong to the day it started? **[proposed]** yes (3.10).
+2. Roles (3.13): how is the role stored? **[proposed]** A `role` text column with permissions mapped in code. Alternatives: an `is_admin` boolean, or role and permission tables.
+3. Roles (3.13): which unreleased puzzles may an admin open? **[proposed]** Every scheduled future day, so the whole buffer can be checked before it goes live. Alternatives: only the next 3 days, or scheduled days plus drafts not yet scheduled.
+4. Roles (3.13): do an admin's plays count? **[proposed]** Never: every admin play is a test play, and the owner plays for real with a separate player account. Alternative: count an admin's plays of today's puzzle, and exclude only upcoming puzzles and plays after a reset.
+5. Roles (3.13): is a second factor required for admin accounts? **[proposed]** Yes, TOTP before public launch. Alternative: password only for now.
 
 Every other question asked so far is answered and recorded as decisions 51 to 58. New questions are added here.
 
@@ -852,6 +955,8 @@ Every other question asked so far is answered and recorded as decisions 51 to 58
 - Geometry game, generation and engines: [Todd, Theorem discovery amongst cyclic polygons (ADG 2023 slides)](https://www.adg2023.matf.bg.ac.rs/downloads/slides/TheoremDiscoveryTodd.pdf), [Saltire problem generator](https://www.saltire.com/ProblemGenerator), [AlphaGeometry `ar.py`](https://github.com/google-deepmind/alphageometry/blob/main/ar.py), [Newclid paper](https://arxiv.org/abs/2411.11938), [Newclid on PyPI](https://pypi.org/project/newclid), [KaTeX](https://katex.org/), [MathJax](https://www.mathjax.org/), [JSXGraph](https://jsxgraph.org/), [Mafs](https://mafs.dev/)
 - Geometry game, hints: [O'Rourke et al. 2014, hint sequences](https://grail.cs.washington.edu/wp-content/uploads/2015/08/orourke2014hsm.pdf), [Razzaq and Heffernan, hints](https://web.cs.wpi.edu/~nth/pubs_and_grants/papers/2010/ITS/Razzaq%20Hints%20Is%20It%20Better%20to%20Give%20or%20Wait.pdf)
 - Geometry game, lengths and radii: [Newclid abstract](https://arxiv.org/abs/2411.11938), [Pappus' Sangaku](https://www.cut-the-knot.org/pythagoras/SteinerSangaku.shtml), [Sangaku overview](https://yadda.icm.edu.pl/baztech/element/bwmeta1.element.baztech-3ecada10-b775-4b8c-8212-0e0887ba68ec/c/PJANIC_K.__Sangaku.pdf), [Apollonian gasket](https://en.wikipedia.org/wiki/Apollonian_gasket)
+
+- Roles and admin tools (read 2026-10-30): [OWASP Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html), [OWASP Multifactor Authentication Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Multifactor_Authentication_Cheat_Sheet.html), [OWASP API Top 10:2023](https://api-security.owasp.org/editions/2023/en/0x11-t10), [PostgreSQL ALTER TYPE](https://www.postgresql.org/docs/16/sql-altertype.html), [Alembic autogenerate](https://alembic.sqlalchemy.org/en/latest/autogenerate.html), [alembic-postgresql-enum](https://pypi.org/p/alembic-postgresql-enum), [FastAPI OAuth2 scopes](https://fastapi.tiangolo.com/advanced/security/oauth2-scopes/), [GitLab admin mode epic](https://gitlab.com/groups/gitlab-org/-/epics/2158), [GitHub sudo mode (Enterprise Server docs)](https://docs.github.com/es/enterprise-server@3.6/authentication/keeping-your-account-and-data-secure/sudo-mode)
 
 ## 12. Architecture and operations
 
