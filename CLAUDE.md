@@ -6,12 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This folder is the small platform repo (its `.gitignore` excludes the two app folders). It holds two independent repos, each with its own `.git`, `CLAUDE.md` and `.claude/` (settings and skills), plus the files that tie them together:
 
-- `my-list-be/` — FastAPI backend (Python 3.12, pip + `.venv`, Postgres, Redis). Commands and architecture: `my-list-be/CLAUDE.md`.
+- `my-list-be/` — FastAPI backend (Python 3.12, uv with `pyproject.toml` and `uv.lock`, Postgres, Redis). Commands and architecture: `my-list-be/CLAUDE.md`.
 - `my-list-fe/` — Vite + React + TypeScript SPA (TanStack Router/Query, Zustand, axios). Commands and architecture: `my-list-fe/CLAUDE.md`.
 - `CONTRACTS.md` — the FE/BE seam: API routing, auth cookie, password flows, errors, health endpoints, OpenAPI types.
 - `SPEC.md` — the product and game spec; `ARCHITECTURE.md` — the technical decisions for running it in production.
 
-Run commands from inside the repo they belong to (`cd my-list-be && .venv/bin/pytest`, `cd my-list-fe && npm run dev`). Run `git` inside the repo a change belongs to; run it from this folder only for the specs and `CONTRACTS.md`. Repo-internal rules live in the repo `CLAUDE.md` files and are not repeated here.
+Run commands from inside the repo they belong to (`cd my-list-be && uv run pytest`, `cd my-list-fe && npm run dev`). Run `git` inside the repo a change belongs to; run it from this folder only for the specs and `CONTRACTS.md`. Repo-internal rules live in the repo `CLAUDE.md` files and are not repeated here.
 
 ## Working across both repos
 

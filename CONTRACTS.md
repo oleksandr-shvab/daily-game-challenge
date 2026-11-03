@@ -33,10 +33,26 @@ repo-internal detail (stack choices, file layout) — only the seams between the
 - **Cookie host-scoping gotcha**: the cookie is host-scoped, so frontend must reach
   the backend via `http://localhost:8000`, not `127.0.0.1:8000` — otherwise the
   cookie won't round-trip to `http://localhost:5173`.
-- No CSRF protection exists yet (backend gap, judged sufficient for now via
-  `SameSite=Lax` since there's currently one mutating domain). Not something the
-  frontend compensates for — revisit together when the Phase 1 game endpoints (guesses,
-  progress, guest merge) land; the CSRF Origin check is task M1-41.
+- CSRF: every POST, PUT, PATCH and DELETE on the API is checked before anything else (before the
+  session, the body, the content type and the route's own rules). The request's origin is the
+  `Origin` header, or the origin of `Referer` if `Origin` is absent. If neither is present, the value
+  is `null`, or the origin is not exactly one of the allowed origins (scheme, host and port; no
+  wildcard, no suffix match), the answer is 403 `csrf_origin_mismatch` and nothing changes. GET,
+  HEAD and OPTIONS are not checked. Allowed origins: the origin of `FRONTEND_URL`; in `local` and
+  `test` also the origins in `BACKEND_CORS_ORIGINS` and the API's own origin
+  (`API_BASE_URL`, default `http://localhost:8000`, so "Try it out" on `/docs` works). Staging and
+  production allow only `FRONTEND_URL`'s origin.
+- JSON-only bodies: a POST, PUT or PATCH that carries a body must have `Content-Type:
+  application/json` (a `charset` parameter is fine), otherwise 415 `unsupported_media_type`. A
+  body is any request with `Transfer-Encoding` (whatever `Content-Length` says) or a non-zero or
+  unreadable `Content-Length`, so an empty chunked POST without `application/json` gets 415. A request
+  with no body framing (for example `POST /auth/logout` from a browser) is not refused for its
+  content type.
+- No custom CSRF header exists (decision Q18); the frontend sends nothing extra. The browser sets
+  `Origin` itself. Dev notes: open the frontend at `http://localhost:5173`, not `127.0.0.1:5173`,
+  and not the preview server on 4173, because neither origin is allowed. The Vite proxy must keep
+  the browser's `Origin` header. curl and scripts must send `-H 'Origin: http://localhost:5173'`.
+  `SameSite=Lax` stays as defense in depth.
 - Frontend never handles a raw token; all requests use `withCredentials: true`.
 - The cookie is `Secure` in every environment except `local` and `test`. Passwords are 8 to 128
   characters (counted as characters, not bytes) and are hashed with argon2id.
@@ -100,7 +116,10 @@ repo-internal detail (stack choices, file layout) — only the seams between the
 - Other codes in use: `email_already_registered` (409), `invalid_credentials` (401),
   `not_authenticated` (401), `invalid_or_expired_reset_token` (400), `incorrect_password` (400),
   `passwords_do_not_match` and `new_password_same_as_old` (422, as field errors), `not_found` (404),
-  `method_not_allowed` (405), `service_unavailable` (503), `internal_error` (500).
+  `method_not_allowed` (405), `csrf_origin_mismatch` (403), `unsupported_media_type` (415),
+  `service_unavailable` (503), `internal_error` (500). Every `application/problem+json` error
+  response carries `Cache-Control: no-store` (CORSMiddleware's own plain-text 400 on a refused
+  preflight, dev only, is not one of them).
 - Every response carries `X-Request-ID` (the proxy's value if well formed, else generated) and the
   same id is in the body as `request_id`; the frontend shows it on its error screen.
 - The frontend's `ApiError` mirrors this (`status`, `code`, `params`, `requestId`, `fieldErrors`) and
