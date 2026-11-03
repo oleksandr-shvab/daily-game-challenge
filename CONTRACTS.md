@@ -118,6 +118,7 @@ repo-internal detail (stack choices, file layout) — only the seams between the
   `not_authenticated` (401), `invalid_or_expired_reset_token` (400), `incorrect_password` (400),
   `passwords_do_not_match` and `new_password_same_as_old` (422, as field errors), `not_found` (404),
   `method_not_allowed` (405), `csrf_origin_mismatch` (403), `unsupported_media_type` (415),
+  `game_not_found`, `variant_not_found` and `puzzle_not_found` (404, see "Games"),
   `service_unavailable` (503), `internal_error` (500). Every `application/problem+json` error
   response carries `Cache-Control: no-store` (CORSMiddleware's own plain-text 400 on a refused
   preflight, dev only, is not one of them).
@@ -128,11 +129,68 @@ repo-internal detail (stack choices, file layout) — only the seams between the
   `code: "http_error"`, and no response at all becomes `status: 0, code: "network_error"`.
 - Success bodies are unchanged. The `202` of `forgot-password` still returns `{"detail": "..."}`.
 
+## Games
+
+Routes (all under `/v1`, so the frontend calls `/api/v1/games/...`). Game routes work for a guest
+with no cookie; none of them answers 401. Operation ids: `games_list_games`,
+`games_get_today_puzzle`, `games_get_puzzle`.
+
+- `GET /games` returns `{"items": [{"slug", "default_variant", "launch_date"}]}`: the enabled games
+  only. Name, nav order and the default game stay in the frontend registry.
+- `GET /games/{slug}/puzzles/today` and `GET /games/{slug}/puzzles/{date}` return the puzzle view.
+  `today` is the server's UTC date, and the body names the `date` it resolved to. The frontend
+  never computes "today" itself.
+- `slug` is an exact match of an enabled game, else 404 `game_not_found`. `variant` is an optional
+  query parameter and defaults to the game's `default_variant`; a variant the game does not have
+  gives 404 `variant_not_found`. For the game guesser the only variant is its default, named
+  `default`.
+- `date` is exactly `YYYY-MM-DD` and a real day (`2026-02-30` and `20261102` are not). Otherwise 422
+  `validation_error` with `errors: [{"field": "date", "code": "invalid_value", "params": {}}]`.
+  Field names in validation errors are bare: no `path.` or `query.` prefix, as for `body`.
+- A puzzle that does not exist or is not visible (a draft or other unscheduled status, a future
+  date, a date before the game's launch date) gives 404 `puzzle_not_found`. The body is the same in
+  every case apart from `request_id`, so a player cannot tell a future puzzle from a missing one.
+  The order of the checks is game, variant, puzzle. A puzzle becomes visible at 00:00:00 UTC on its
+  date, with no job.
+
+The view (`type: "game_guesser"` tags it, so later games can add other types):
+
+- `type`, `slug`, `variant`, `date`, `number` (days since the game's launch date, plus 1), `status`
+  (`in_progress`, `won`, `lost`), `max_guesses` (6), `guesses_used`, `guesses_left`, `guesses`
+  (each `title_id`, `name`, `result`; a skip has null `title_id` and `name`), `steps`, `answer`,
+  `counts_for_streak` and `signed_in`.
+- `steps` holds only the steps earned so far: steps 1 to `guesses_used + 1` while the game is in
+  progress, all six at the end. Each step is `step`, `hint` (`{"kind", "value"}`, or `null` when the
+  step has no hint) and `source_url` (`null` until the game ends). Clue `media` is added by a later
+  change (M1-18) as a new field on each step.
+- `answer` is `null` until the game ends, then `{"title_id", "name", "franchise", "year"}`. The
+  response holds no internal puzzle or progress id.
+- `counts_for_streak` is `null` for now; it is filled once guesses and stored progress exist.
+- `signed_in` is true when the request has a valid session. A game response with `signed_in: false`
+  while the frontend shows a user means the session ended; the frontend switches to signed out, as
+  for a 401.
+
+Caching (`Cache-Control`):
+
+| Response | Value |
+|---|---|
+| `GET /games` | `public, max-age=300` |
+| puzzle view (`today` and dated) | `private, no-store` |
+| any error response, including every 404 | `no-store` |
+
 ## Health
 
 - `GET /healthz` (liveness, no dependencies) and `GET /readyz` (Postgres and Redis; `503` with
   `code: "service_unavailable"` and `params.failed` listing what is down). They are not part of the
   app's API: the proxy must not expose them publicly.
+
+## Clock
+
+- `GET /v1/clock` returns `{ now, today, next_reset }`: the server's UTC time, the UTC date and the
+  next 00:00 UTC. It touches no database and sends `Cache-Control: no-store`.
+- Display only. The frontend may use the offset between `now` and the device clock to draw a
+  countdown to `next_reset`. The server alone decides what "today" is for visibility, streak flags
+  and the archive; the client never decides it from its own clock.
 
 ## API types
 

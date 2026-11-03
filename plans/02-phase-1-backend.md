@@ -395,6 +395,8 @@ Every PR:
 
 ### PR M1-18: clue media, signed links, byte ranges (AC-25 media, AC-70 to AC-74b, AC-82 media)
 
+**Carried over from M1-10 (owner, 2026-11-03):** M1-10 shipped `GameModule.get_puzzle(puzzle, state, *, is_signed_in)` without the `sign` parameter, since there was no media to sign. This PR adds `sign` to the contract in `app/games/modules/base.py` and to `game_guesser.py`, and passes the signer from the service.
+
 1. `uv add boto3` (runtime: the app imports it, and CI's `--no-dev` jobs must install it). Lock with CI's uv version (Risks).
 2. Settings (`app/core/config.py`):
    - `MEDIA_STORAGE` (`local` or `s3`, default `local`);
@@ -535,7 +537,7 @@ No skill covers Postgres or Alembic specifically (gap filled with `docs`). Front
 
 - Prefix commands with `PATH="$HOME/.local/bin:$PATH"` (uv is not on `PATH` in non-login shells).
 - `docker start dgc-dev-pg dgc-dev-redis` (Postgres 5544, Redis 6390). Recreate them with the commands in `plans/01-phase-0-backend.md:182-185` if they are gone. `postgres:16-alpine` ships `pg_trgm`.
-- `<4 values>` means these four assignments, at the front of every `pytest` and `alembic` command (`.env` points at the other project's Postgres):
+- `<4 values>` means these four assignments, at the front of every `pytest` and `alembic` command (`.env` now points at `dgc-dev-pg` on 5544 too, but under the old `item_list` database names, so pass these explicitly; export them as variables, since zsh does not word-split `env "$V"`):
   - `DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5544/daily_game_challenge`
   - `TEST_DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5544/daily_game_challenge_test`
   - `REDIS_URL=redis://localhost:6390/0`
