@@ -80,6 +80,8 @@ PR M1-10a updates the skill's two passages to say `app/crud/<entity>.py` and cha
 | M1-14 | optional, `medium` | Pure rules, fully pinned by the S1 to S19 and T1 to T3 tables |
 | others | none | `plan-verifier` is enough |
 
+**Owner's change (2026-11-03, after the M1-10a review):** every backend PR that adds a migration or a route (all except M1-17) gets `code-review` at `high` (up to two fix rounds) and then `test-writer`, before its commit. The rows above keep their `security-review` passes. On M1-10a these extra steps found a migration that failed on an empty database and a visibility query that crashed.
+
 - Commits, pushes and PRs only when the owner asks. Squash merge (`ARCHITECTURE.md:156`). `main` has no branch protection, so "CI green before merge" is checked by hand: lint, test, migrations, openapi.
 - **Merge order with the frontend:** the owner merges a backend PR that changes the OpenAPI snapshot only once its frontend regeneration PR (G-M1-xx) is ready. The red `api-types` window is then minutes (frontend plan "Assumptions about the backend").
 
@@ -551,7 +553,7 @@ Every PR runs the gate below once, in the implementer run; `plan-verifier` re-ru
 | Snapshot | `uv run python scripts/export_openapi.py --check` | exit 0; `git diff main -- openapi/openapi.json` shows only additions |
 | Scoped tests | `<4 values> uv run pytest -q <files below>` | all pass |
 | Full suite | `<4 values> uv run pytest -q` | all pass |
-| Migrations (M1-10a, M1-11, M1-13) | `docker exec dgc-dev-pg createdb -U postgres daily_game_challenge` (ignore "already exists"), then `<4 values> uv run alembic upgrade head`, `uv run alembic heads` (one head), `<4 values> uv run alembic check`, then `alembic downgrade -1` and `upgrade head` again | exit 0, one head, no diff |
+| Migrations (M1-10a, M1-11, M1-13) | `docker exec dgc-dev-pg createdb -U postgres daily_game_challenge` (ignore "already exists"), then `<4 values> uv run alembic upgrade head`, `uv run alembic heads` (one head), `<4 values> uv run alembic check`, then `alembic downgrade -1` and `upgrade head` again. **Also from an empty database, as CI does:** `dropdb --if-exists` and `createdb` a throwaway database, point `DATABASE_URL` at it, `upgrade head`, `alembic check`, `downgrade base`, `upgrade head`, then drop it (the dev database alone hides migrations that only work on old state; found in M1-10a review) | exit 0, one head, no diff, on both databases |
 
 Scoped tests per PR:
 
