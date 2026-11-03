@@ -33,7 +33,8 @@ repo-internal detail (stack choices, file layout) — only the seams between the
 - **Cookie host-scoping gotcha**: the cookie is host-scoped, so frontend must reach
   the backend via `http://localhost:8000`, not `127.0.0.1:8000` — otherwise the
   cookie won't round-trip to `http://localhost:5173`.
-- CSRF: every POST, PUT, PATCH and DELETE on the API is checked before anything else (before the
+- CSRF: every request on the API except GET, HEAD and OPTIONS (in practice POST, PUT, PATCH and
+  DELETE) is checked before anything else (before the
   session, the body, the content type and the route's own rules). The request's origin is the
   `Origin` header, or the origin of `Referer` if `Origin` is absent. If neither is present, the value
   is `null`, or the origin is not exactly one of the allowed origins (scheme, host and port; no
