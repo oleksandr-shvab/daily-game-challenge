@@ -39,7 +39,7 @@ PR M1-10a updates the skill's two passages to say `app/crud/<entity>.py` and cha
 - **R-12. Every problem-details response gets `Cache-Control: no-store`.** This is set once in `problem_response` (`app/core/errors.py:92`) in PR M1-41, and covers AC-77's "any error response" row for all routes, auth included. ARCHITECTURE 7 already asks for `no-store` on auth responses.
 - **R-13. Strict dates.** Pydantic's lax `date` accepts integers as Unix timestamps. Path and query dates (`date`, `before`) therefore use a string with the pattern `^\d{4}-\d{2}-\d{2}$`, then `date.fromisoformat`. A bad value gives 422 `validation_error` with `field: "date"`.
 - **R-14. Field names in validation errors drop the `path.` and `query.` prefixes,** as they already drop `body` (`app/core/errors.py:108`). AC-17 wants `field: "date"`, not `path.date`. No existing route has path or query parameters, so nothing existing changes.
-- **R-15. List errors get the `max` parameter.** Add Pydantic's list `too_long` type to `VALIDATION_PARAMS` (`app/core/errors.py:62-65`), so a merge with more than 500 entries gives `{"field": "entries", "code": "too_long", "params": {"max": 500}}` (AC-62).
+- **R-15. List errors get the `max` parameter.** *(Done in M1-12, owner 2026-11-04: the guess body's `previous` cap needed it, together with `int_type` and `list_type` mapped to `invalid_type`; M1-15 only uses it.)* Add Pydantic's list `too_long` type to `VALIDATION_PARAMS` (`app/core/errors.py:62-65`), so a merge with more than 500 entries gives `{"field": "entries", "code": "too_long", "params": {"max": 500}}` (AC-62).
 - **R-16. List responses are objects** (`{"items": [...]}` for games and titles; archive adds `next_before`). This keeps later additions non-breaking.
 - **R-17. The local media route is left out of the OpenAPI document** (`include_in_schema=False`, GET and HEAD). The frontend never calls it through the generated client: links are opaque URLs taken from the view. FastAPI's `APIRoute` does not add HEAD to a GET route (`fastapi/routing.py:1019-1021`, unlike Starlette's `routing.py:237-238`). One `api_route` with both methods in the schema would emit two operations with the same id. `CONTRACTS.md` documents the route.
 - **R-18. Byte ranges reuse Starlette's `FileResponse`,** which in 1.6.0 already answers a single range with 206 and `Content-Range`, sets `Accept-Ranges`, and handles HEAD (`starlette/responses.py:319`, `:395-414`). Two gaps against AC-72b and the edge table:
@@ -365,11 +365,13 @@ Every PR:
    - pure unit tests of `submit_guess`, one table: win, lose, skip, franchise, null franchise on either side, near-duplicate correct, duplicate, after finish;
    - a route test that walks a full won game and a full lost game, scanning every response body for the answer's id and name until the end (AC-29);
    - a step-count check at each step (AC-26);
-   - route rows for each AC-39 case and each new code;
+   - rows for each AC-39 case and each new code, at the service level (owner, after M1-12: the test budget of one happy-path client test per endpoint wins; the HTTP mapping of `AppException` is shared and tested in `test_errors.py`);
    - `counts_for_streak` with the injected clock, both sides of midnight.
 6. Snapshot; `CONTRACTS.md` "Games" gets the guess rules, `previous` (the guest keeps its own list and the first `counts_for_streak`), and the four codes.
 
 ### PR M1-13: account progress and resume (AC-35, AC-36, AC-38, AC-41 to AC-45)
+
+**Carried over from M1-12 (owner, 2026-11-04):** the AC-37 guest test could only assert an empty session, because no progress table existed. Once `progress` exists, make it assert that a guest guess writes no progress row. M1-12 also added `max_guesses` to `GameModule` and fixed the guess error order (history 422, finished 409, unknown title 422, duplicate 422; see `CONTRACTS.md`); resume and account guesses keep that order.
 
 1. `app/models/progress.py` and a migration:
    - `progress`: `user_id` FK to `users` `ON DELETE CASCADE`; `puzzle_id` FK; `status` (CHECK `in_progress`, `won`, `lost`); `started_at`; `finished_at`; `counts_for_streak`; `is_test` (server default false); `origin` (CHECK `play`, `merge`); unique `(user_id, puzzle_id)` (AC-35).

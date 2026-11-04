@@ -119,7 +119,10 @@ repo-internal detail (stack choices, file layout) — only the seams between the
   `passwords_do_not_match` and `new_password_same_as_old` (422, as field errors), `not_found` (404),
   `method_not_allowed` (405), `csrf_origin_mismatch` (403), `unsupported_media_type` (415),
   `game_not_found`, `variant_not_found` and `puzzle_not_found` (404, see "Games"),
-  `service_unavailable` (503), `internal_error` (500). Every `application/problem+json` error
+  `title_not_found`, `duplicate_guess` and `invalid_guess_history` (422) and
+  `puzzle_already_finished` (409), see "Games",
+  `bad_request` (400: a body the JSON parser rejects before validation, for example a number longer
+  than 4300 digits), `service_unavailable` (503), `internal_error` (500). Every `application/problem+json` error
   response carries `Cache-Control: no-store` (CORSMiddleware's own plain-text 400 on a refused
   preflight, dev only, is not one of them).
 - Every response carries `X-Request-ID` (the proxy's value if well formed, else generated) and the
@@ -133,7 +136,7 @@ repo-internal detail (stack choices, file layout) — only the seams between the
 
 Routes (all under `/v1`, so the frontend calls `/api/v1/games/...`). Game routes work for a guest
 with no cookie; none of them answers 401. Operation ids: `games_list_games`,
-`games_get_today_puzzle`, `games_get_puzzle`, `games_search_titles`.
+`games_get_today_puzzle`, `games_get_puzzle`, `games_search_titles`, `games_submit_guess`.
 
 - `GET /games` returns `{"items": [{"slug", "default_variant", "launch_date"}]}`: the enabled games
   only. Name, nav order and the default game stay in the frontend registry.
@@ -167,6 +170,38 @@ Title search, for the guess box:
   by name. At most 200 items, and only real matches: a nonsense `q` gives few or none, never a
   padded list. An unknown or disabled `slug` gives 404 `game_not_found`.
 
+Guessing:
+
+- `POST /games/{slug}/puzzles/{date}/guesses` with the body `{"title_id": 123 | null, "previous":
+  [123, null, ...]}` (both fields are required; `title_id: null` is a skip). It answers 200 with the
+  full new puzzle view, so no second call is needed. `slug`, `variant` (optional query parameter)
+  and `date` follow the same rules and give the same 404s as the view, checked first. The response
+  is `private, no-store`. The route needs an allowed `Origin` and a JSON body, like every POST.
+- Until stored progress exists (M1-13) every request is handled as a guest's, a signed-in user
+  included: nothing is stored, and the client keeps the guess list.
+- A guest has no stored game, so the client sends its own earlier guesses in `previous`, in order
+  (a skip is `null`), and the server replays them through the same rules as the new guess and
+  stores nothing. On the first guess
+  `previous` is `[]`.
+- The rules: a guess is correct when its title is the answer or has the same normalized name as the
+  answer (a duplicate row of the same title counts). A wrong guess whose title and the answer have
+  the same normalized franchise gets `result: "franchise"`; a title or answer with no franchise
+  never matches, and a skip never gets it. Results are `correct`, `franchise`, `wrong` and
+  `skipped`. A correct guess sets `status: "won"`; the sixth guess or skip that is not correct sets
+  `"lost"`. The score is `guesses_used`, skips included. Only when the game ends does the view
+  carry `answer` and the `source_url` of every step.
+- `counts_for_streak`: on a guest's first guess (`previous` empty) it is `true` when the server's
+  UTC date equals the puzzle's date and `false` otherwise (an archive play). On every later request
+  it is `null`: the browser keeps the first value.
+- Errors, in the order the server checks them: first 422 `validation_error` for a malformed body
+  (FastAPI validates the body before the route runs), then the 404s of the view, then 422
+  `invalid_guess_history` when `previous` has more than 5 entries, has a title that does not exist, repeats a title, or has an entry after a correct guess;
+  409 `puzzle_already_finished` when `previous` already ends the game (its last entry is correct),
+  whatever `title_id` is; 422 `title_not_found` when `title_id` is not a title of the game's kind;
+  422 `duplicate_guess` when `title_id`, or a title with the same normalized name, is already in `previous`. A refused guess uses no guess. A
+  body that is not that shape (a missing field, a string id, more than 20 entries in `previous`)
+  is 422 `validation_error` with the field name (`title_id`, `previous`, or `previous.0`).
+
 The view (`type: "game_guesser"` tags it, so later games can add other types):
 
 - `type`, `slug`, `variant`, `date`, `number` (days since the game's launch date, plus 1), `status`
@@ -179,7 +214,8 @@ The view (`type: "game_guesser"` tags it, so later games can add other types):
   change (M1-18) as a new field on each step.
 - `answer` is `null` until the game ends, then `{"title_id", "name", "franchise", "year"}`. The
   response holds no internal puzzle or progress id.
-- `counts_for_streak` is `null` for now; it is filled once guesses and stored progress exist.
+- `counts_for_streak` is `null` on every read. It is set only on a guest's first guess (see
+  "Guessing"); stored progress for accounts (M1-13) fills it later.
 - `signed_in` is true when the request has a valid session. A game response with `signed_in: false`
   while the frontend shows a user means the session ended; the frontend switches to signed out, as
   for a 401.
@@ -191,6 +227,7 @@ Caching (`Cache-Control`):
 | `GET /games` | `public, max-age=300` |
 | `GET /games/{slug}/titles` | `public, max-age=300` |
 | puzzle view (`today` and dated) | `private, no-store` |
+| `POST /games/{slug}/puzzles/{date}/guesses` | `private, no-store` |
 | any error response, including every 404 | `no-store` |
 
 ## Health
