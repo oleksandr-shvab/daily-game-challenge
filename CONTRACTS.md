@@ -133,7 +133,7 @@ repo-internal detail (stack choices, file layout) — only the seams between the
 
 Routes (all under `/v1`, so the frontend calls `/api/v1/games/...`). Game routes work for a guest
 with no cookie; none of them answers 401. Operation ids: `games_list_games`,
-`games_get_today_puzzle`, `games_get_puzzle`.
+`games_get_today_puzzle`, `games_get_puzzle`, `games_search_titles`.
 
 - `GET /games` returns `{"items": [{"slug", "default_variant", "launch_date"}]}`: the enabled games
   only. Name, nav order and the default game stay in the frontend registry.
@@ -152,6 +152,20 @@ with no cookie; none of them answers 401. Operation ids: `games_list_games`,
   every case apart from `request_id`, so a player cannot tell a future puzzle from a missing one.
   The order of the checks is game, variant, puzzle. A puzzle becomes visible at 00:00:00 UTC on its
   date, with no job.
+
+Title search, for the guess box:
+
+- `GET /games/{slug}/titles?q=` returns `{"items": [{"id", "name", "franchise", "year"}]}`: titles
+  of the game's title kind whose name or franchise is close to `q`. `franchise` and `year` can be
+  `null`. Nothing in an item says whether the title is an answer. The `id` is what a guess sends.
+- `q` is required plain text. `%`, `_` and backslashes are ignored like other punctuation; they never act as wildcards. The
+  match ignores case, accents and punctuation ("half life" finds "Half-Life 2") and forgives typos
+  ("zlda" finds "The Legend of Zelda: Breath of the Wild"). A trimmed `q` under 2 characters, or one
+  with fewer than 2 letters or digits after normalization ("a.", "a-"), gives `{"items": []}`; a `q` over 100 characters gives 422
+  `validation_error` with `errors: [{"field": "q", "code": "too_long", "params": {"max": 100}}]`.
+- Best matches come first: an exact name, then names that start with `q`, then closer matches, then
+  by name. At most 200 items, and only real matches: a nonsense `q` gives few or none, never a
+  padded list. An unknown or disabled `slug` gives 404 `game_not_found`.
 
 The view (`type: "game_guesser"` tags it, so later games can add other types):
 
@@ -175,6 +189,7 @@ Caching (`Cache-Control`):
 | Response | Value |
 |---|---|
 | `GET /games` | `public, max-age=300` |
+| `GET /games/{slug}/titles` | `public, max-age=300` |
 | puzzle view (`today` and dated) | `private, no-store` |
 | any error response, including every 404 | `no-store` |
 

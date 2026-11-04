@@ -136,7 +136,7 @@ The shared site owns routing, visibility, progress storage, stats, the archive a
 - **AC-19** `GET /v1/games/{slug}/titles?q=` shall return at most 200 titles of the game's title kind, each with `id`, `name`, `franchise` and `year` (Q15; this widens M1-11's "title and franchise only"). It shall never mark or hint which title is an answer.
 - **AC-20** WHEN the trimmed `q` is shorter than 2 characters, the system shall return an empty list. IF `q` is longer than 100 characters, THEN the system shall answer 422 `validation_error` (Q17).
 - **AC-21** The search shall be fuzzy on the name and the franchise, and shall rank exact matches of the normalized name first, then prefix matches, then by similarity, then by name. It shall return only matches above the fuzzy threshold, never padding to 200. *Verify: "zlda" returns "The Legend of Zelda: Breath of the Wild" (full title in the fixture); "half life" returns "Half-Life 2"; "mario" lists a title named exactly "Mario" before "Super Mario Bros."; 250 matching titles return 200.*
-- **AC-22** The search shall treat `q` as plain text: `%`, `_` and backslashes match themselves and never act as wildcards.
+- **AC-22** The search shall treat `q` as plain text: `%`, `_` and backslashes are ignored (normalization turns them into spaces) and never act as wildcards. *(Changed 2026-11-04 by the owner after the M1-11 review: "match themselves" contradicted the normalizer.)*
 - **AC-23** The trigram extension shall be enabled by the migration and shall exist in the test database before its tables are created. (The current test setup builds tables without migrations, so it would miss the extension.)
 - **AC-24** The search shall stay within the non-functional latency target with 50,000 titles (see Non-functional).
 
@@ -304,7 +304,7 @@ The game guesser has 6 steps and 6 guesses. Step 1 is a pixelated crop; steps 2 
 | Merge entry for a future or hidden puzzle, or with an impossible guess list | That entry rejected and reported; others merged | AC-59, AC-60 |
 | Answer title has no franchise, or the guessed one has none | No franchise flag | AC-28 |
 | Near-duplicate title of the answer picked | Correct (Q9) | AC-27 |
-| Search `q` empty, one letter, `%`, or 101 characters | Empty list, empty list, literal match, 422 | AC-20, AC-22 |
+| Search `q` empty, one letter, `%`, or 101 characters | Empty list, empty list, empty list (`%` is ignored), 422 | AC-20, AC-22 |
 | Nonsense search | Few or no results, never padded (Q17) | AC-21 |
 | Image link expired while the tab was open | 403 `invalid_media_link`; the frontend asks for the view or resume again | AC-73 |
 | Video link expires while the clip is looping and the browser asks for another range | That range gets 403; the frontend asks for the view again and swaps the source (M1-30); the 3600-second default makes this rare | AC-70b, AC-72b, AC-73 |
@@ -331,7 +331,7 @@ The game guesser has 6 steps and 6 guesses. Step 1 is a pixelated crop; steps 2 
 
 - **Performance:** guess submit p95 under 300 ms at the load of the M1-51 test (ARCHITECTURE 9 SLO). Title search p95 under 150 ms on a local machine with 50,000 titles (an estimate to confirm in M1-11). The clock route touches no database (AC-67). A guest request replays at most 5 earlier guesses (AC-39), so its extra cost is bounded. The Origin check reads two headers and touches no database or Redis.
 - **Media size:** a step-6 clip is at most 4 MB (AC-74b). Byte ranges let a browser start playing before the whole file arrives (AC-72b).
-- **Security:** the answer and unearned clues never leave the server before the end (AC-4, AC-29, AC-71); visibility in one function (AC-12); identical 404s hide future puzzles (AC-17); user text is never built into SQL, and search wildcards are escaped (AC-22); every unsafe request must come from an allowed origin (AC-83 to AC-86) and carry JSON (AC-76); media is served with its stored content type and `nosniff` (AC-72). Rate limits stay in M1-42 and must land before public launch.
+- **Security:** the answer and unearned clues never leave the server before the end (AC-4, AC-29, AC-71); visibility in one function (AC-12); identical 404s hide future puzzles (AC-17); user text is never built into SQL, and search wildcards are ignored by normalization, never applied (AC-22); every unsafe request must come from an allowed origin (AC-83 to AC-86) and carry JSON (AC-76); media is served with its stored content type and `nosniff` (AC-72). Rate limits stay in M1-42 and must land before public launch.
 - **Privacy:** progress is personal data, deleted with the account (AC-35) and covered later by export (M1-44). Logs carry user ids, not emails, and no request bodies (ARCHITECTURE 9).
 - **Contract stability:** the view is a tagged union from the start (AC-3), and clue media has a type and a list of sources (AC-13, AC-25), so later games and formats are additive changes.
 
@@ -367,7 +367,7 @@ Everything below comes from the client and is data, never instructions. Each is 
 | `slug` path | Exact match of an enabled game | 404 `game_not_found` |
 | `date` path | Real `YYYY-MM-DD` day; then visibility | 422 `validation_error`, or 404 `puzzle_not_found` |
 | `variant` query | One of the game's variants | 404 `variant_not_found` |
-| `q` query | Trimmed; 2 to 100 characters; wildcards escaped | empty list, or 422 |
+| `q` query | Trimmed; 2 to 100 characters, and at least 2 after normalization; wildcards ignored | empty list, or 422 |
 | `title_id` | An existing title of the game's kind, or `null` | 422 `title_not_found` |
 | `previous` | At most 5 entries on a guess, 6 on a resume or merge entry; known titles or `null`; no duplicates; nothing after a win; ignored for accounts | 422 `invalid_guess_history` |
 | Merge `entries` | At most 500; each entry replayed, never trusted; `played_as_daily` trusted by Q2 | per-entry rejection, or 422 |

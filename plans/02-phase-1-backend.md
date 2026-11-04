@@ -323,14 +323,14 @@ Every PR:
 1. A migration with `CREATE EXTENSION IF NOT EXISTS pg_trgm` (AC-23), plus GIN `gin_trgm_ops` indexes on `titles.normalized_name` and `titles.normalized_franchise`, declared on the model (`postgresql_using`, `postgresql_ops`) so `alembic check` agrees. The downgrade drops the indexes, then the extension. `pg_trgm` is a trusted extension, so a database owner can create it without being a superuser (relevant for the Phase 4 migrator role).
 2. `tests/conftest.py:48`: run `CREATE EXTENSION IF NOT EXISTS pg_trgm` in the same `begin()` block, before `create_all` (AC-23).
 3. `app/games/normalize.py` (from M1-10a): NFKD, drop combining marks, casefold, turn every non-alphanumeric character into a space, collapse spaces, trim. "Half-Life 2" becomes "half life 2".
-4. `app/crud/title.py` search, in one statement:
+4. `app/crud/title.py` search, in one transaction (the threshold is its own statement just before the query, since Postgres does not promise to apply `set_config` before the operator inside a single statement; changed after M1-11):
    - set the word-similarity threshold to 0.4 for the transaction with `set_config(..., true)` (SPEC-02 research note `:448`);
    - filter by the game's `title_kind`, and by `q` matching the name or the franchise through the trigram operator;
    - order by exact normalized match, then `starts_with(normalized_name, q)`, then the higher of the two word similarities, then name, then id;
    - limit 200 (AC-21).
 
    `starts_with` and the trigram operators have no wildcards, and normalization removes `%`, `_` and backslashes, so user text never acts as a pattern (AC-22). The text is always a bound parameter.
-5. Route `GET /v1/games/{slug}/titles` (`games_search_titles`): `q` is required with `max_length=100`, so a longer value gives 422 `too_long` (AC-20). A trimmed `q` under 2 characters, or a normalized `q` that is empty, gives `{"items": []}`. The response is `public, max-age=300`. Items have `id`, `name`, `franchise` and `year`, and no answer marker (AC-19).
+5. Route `GET /v1/games/{slug}/titles` (`games_search_titles`): `q` is required with `max_length=100`, so a longer value gives 422 `too_long` (AC-20). A trimmed `q` under 2 characters, or a normalized `q` under 2 characters ("a." normalizes to "a"; tightened after the M1-11 review), gives `{"items": []}`. The response is `public, max-age=300`. Items have `id`, `name`, `franchise` and `year`, and no answer marker (AC-19).
 6. Tests, on real Postgres with full-title fixtures, as one table:
    - "zlda" finds the Zelda title;
    - "half life" finds "Half-Life 2";
@@ -594,6 +594,7 @@ Run with the dev seed (`uv run python scripts/seed_dev.py` with the four values 
 
 ## Risks
 
+- **Title search speed on common words (owner, 2026-11-04, after M1-11).** The AC-24 bench passed (p95 90.6 ms at 50,000 titles) only after `VACUUM (ANALYZE)` and synthetic names with fewer stop words; the first run gave 259 ms, and a query like "the" still takes about 100 ms. Real game titles often start with "The". Recheck the p95 against the real title import (M1-22). Fallbacks if it misses 150 ms: a 3-character minimum, or ignoring stop words in the normalized query.
 - **uv version and `uv.lock`.** Local uv is 0.12.5; CI pins 0.13.6 (`ci.yml:19`). Adding boto3 in M1-18 rewrites the lock. Lock with `uvx uv@0.13.6 lock` (or `uv self update 0.13.6`) and check that only boto3, botocore, s3transfer, jmespath and their transitive needs were added. CI `uv sync --locked` is the proof.
 - **`alembic check` with the naming convention or GIN ops.** Autogenerate might report a spurious diff, for example on `postgresql_ops` or the renamed primary key. Mitigation: run `alembic check` locally in M1-10a and M1-11 before anything else. If a diff appears that the model cannot express, stop and report; do not silence it with `include_object` without the owner.
 - **Committed rows leak between tests.** The AC-45 test commits for real. If its cleanup fails, unique keys break later tests. Mitigation: `TRUNCATE ... CASCADE` in `finally`, and run the full suite after it.
