@@ -121,10 +121,11 @@ repo-internal detail (stack choices, file layout) — only the seams between the
   `game_not_found`, `variant_not_found` and `puzzle_not_found` (404, see "Games"),
   `title_not_found`, `duplicate_guess` and `invalid_guess_history` (422) and
   `puzzle_already_finished` (409), see "Games",
+  `invalid_media_link` (403) and `range_not_satisfiable` (416), see "Clue media",
   `bad_request` (400: a body the JSON parser rejects before validation, for example a number longer
   than 4300 digits), `service_unavailable` (503), `internal_error` (500). Every `application/problem+json` error
-  response carries `Cache-Control: no-store` (CORSMiddleware's own plain-text 400 on a refused
-  preflight, dev only, is not one of them).
+  response carries `Cache-Control: no-store` and `X-Content-Type-Options: nosniff`
+  (CORSMiddleware's own plain-text 400 on a refused preflight, dev only, is not one of them).
 - Every response carries `X-Request-ID` (the proxy's value if well formed, else generated) and the
   same id is in the body as `request_id`; the frontend shows it on its error screen.
 - The frontend's `ApiError` mirrors this (`status`, `code`, `params`, `requestId`, `fieldErrors`) and
@@ -136,7 +137,8 @@ repo-internal detail (stack choices, file layout) — only the seams between the
 
 Routes (all under `/v1`, so the frontend calls `/api/v1/games/...`). Game routes work for a guest
 with no cookie; none of them answers 401. Operation ids: `games_list_games`,
-`games_get_today_puzzle`, `games_get_puzzle`, `games_search_titles`, `games_submit_guess`.
+`games_get_today_puzzle`, `games_get_puzzle`, `games_search_titles`, `games_submit_guess`,
+`games_resume_puzzle`.
 
 - `GET /games` returns `{"items": [{"slug", "default_variant", "launch_date"}]}`: the enabled games
   only. Name, nav order and the default game stay in the frontend registry.
@@ -177,8 +179,13 @@ Guessing:
   full new puzzle view, so no second call is needed. `slug`, `variant` (optional query parameter)
   and `date` follow the same rules and give the same 404s as the view, checked first. The response
   is `private, no-store`. The route needs an allowed `Origin` and a JSON body, like every POST.
-- Until stored progress exists (M1-13) every request is handled as a guest's, a signed-in user
-  included: nothing is stored, and the client keeps the guess list.
+- A signed-in account has a stored game: the server keeps its guesses, and the stored game wins.
+  `previous` is ignored completely (an account that sends five skips, or anything else, gets the
+  same answer as one that sends `[]`), so the client may send `[]`. The new guess is stored before
+  the answer, and nothing is stored when the guess is refused. The first stored guess creates the
+  game; a view or a resume never does. Two requests of one account for one puzzle at once (two
+  tabs) run one after the other, so no guess is lost or repeated. The score, the steps and the
+  answer follow the same rules as for a guest, so the same guesses give the same view.
 - A guest has no stored game, so the client sends its own earlier guesses in `previous`, in order
   (a skip is `null`), and the server replays them through the same rules as the new guess and
   stores nothing. On the first guess
@@ -192,7 +199,10 @@ Guessing:
   carry `answer` and the `source_url` of every step.
 - `counts_for_streak`: on a guest's first guess (`previous` empty) it is `true` when the server's
   UTC date equals the puzzle's date and `false` otherwise (an archive play). On every later request
-  it is `null`: the browser keeps the first value.
+  it is `null`: the browser keeps the first value. For an account the server sets it once, when the
+  first guess is stored, from the server's UTC date at that moment, and never changes it: a game
+  begun at 23:59 and finished after midnight still counts as a daily play. Every response for an
+  account that has a stored game carries the stored value; with no stored game it is `null`.
 - Errors, in the order the server checks them: first 422 `validation_error` for a malformed body
   (FastAPI validates the body before the route runs), then the 404s of the view, then 422
   `invalid_guess_history` when `previous` has more than 5 entries, has a title that does not exist, repeats a title, or has an entry after a correct guess;
@@ -201,6 +211,32 @@ Guessing:
   422 `duplicate_guess` when `title_id`, or a title with the same normalized name, is already in `previous`. A refused guess uses no guess. A
   body that is not that shape (a missing field, a string id, more than 20 entries in `previous`)
   is 422 `validation_error` with the field name (`title_id`, `previous`, or `previous.0`).
+- For an account the same checks run in the same order, except that there is no history to check:
+  `invalid_guess_history` never happens, because `previous` is not read. 409
+  `puzzle_already_finished` means its stored game is already won or lost, and `duplicate_guess`
+  means the title (or one with the same normalized name) is already among its stored guesses.
+- An account guess can also get 503 `service_unavailable` when its stored game is busy (another
+  request for the same game held it for more than 5 seconds). Nothing was stored, so the client may
+  retry the same guess.
+
+Resume:
+
+- `POST /games/{slug}/puzzles/{date}/resume` with the body `{"previous": [123, null, ...]}` shows a
+  game again after a reload and changes nothing. It answers 200 with the full puzzle view and
+  `private, no-store`. `slug`, `variant` and `date` follow the same rules and give the same 404s
+  as the view, checked first, then the body: a malformed body is 422 `validation_error` (the
+  field is `previous`, or `previous.0`; more than 20 entries is `too_long`).
+- A signed-in account gets its stored game, and `previous` is ignored: `[]` is fine. An account
+  with no stored game gets the empty game.
+- A guest sends its own list in `previous`, in order, and gets the replay. It may hold up to 6
+  entries, because it can be a whole lost game (a guess accepts at most 5). More than 6 entries, a
+  title that does not exist, a repeated title, or an entry after a correct guess is 422
+  `invalid_guess_history`. A replay that ends the game (a correct guess, or six entries that
+  were not correct) returns the finished view, with the answer and every step's `source_url`.
+  For a guest `counts_for_streak` is `null`.
+- The response's `signed_in` says which case ran. A guess or resume answered with `signed_in:
+  false` is a guest result: nothing was stored, so a client that still shows a user must switch to
+  signed out (as for a 401) and keep its own guess list.
 
 The view (`type: "game_guesser"` tags it, so later games can add other types):
 
@@ -210,15 +246,77 @@ The view (`type: "game_guesser"` tags it, so later games can add other types):
   `counts_for_streak` and `signed_in`.
 - `steps` holds only the steps earned so far: steps 1 to `guesses_used + 1` while the game is in
   progress, all six at the end. Each step is `step`, `hint` (`{"kind", "value"}`, or `null` when the
-  step has no hint) and `source_url` (`null` until the game ends). Clue `media` is added by a later
-  change (M1-18) as a new field on each step.
+  step has no hint), `media` (see "Clue media") and `source_url` (`null` until the game ends).
 - `answer` is `null` until the game ends, then `{"title_id", "name", "franchise", "year"}`. The
   response holds no internal puzzle or progress id.
-- `counts_for_streak` is `null` on every read. It is set only on a guest's first guess (see
-  "Guessing"); stored progress for accounts (M1-13) fills it later.
+- `counts_for_streak` is `null` for a guest on every read and after its first guess (see
+  "Guessing"). For an account it is the value stored with its game, or `null` before the first
+  guess.
 - `signed_in` is true when the request has a valid session. A game response with `signed_in: false`
   while the frontend shows a user means the session ended; the frontend switches to signed out, as
   for a 401.
+
+Clue media:
+
+- Each step in `steps` has `media`: `type` (`image` or `video`), `width`, `height`, `expires_at`,
+  `sources` and `poster`. Step 6 of the game guesser is a `video`; steps 1 to 5 are `image`.
+- `sources` is a list of `{"url", "content_type"}`. Use it in order: take the first one the browser
+  can play. A video lists the WebM file first when there is one, and the MP4 file is always last. An
+  image has one entry (`image/webp`). `width` and `height` are those of the last (MP4) source.
+- `poster` is `{"url", "content_type", "expires_at"}`, the still frame of a video (`image/webp`),
+  and `null` for an image.
+- Every URL is absolute and used as it is: do not prefix it, add a header or send a cookie. It loads
+  as an `<img>` or `<video>` source. In dev with local storage it is
+  `http://localhost:5173/api/v1/media/<key>?exp=...&sig=...`, so it goes through the Vite proxy;
+  with S3 storage it points at the bucket (the CSP of M1-40 needs `media-src` and `img-src` for the
+  bucket's origin).
+- Links exist only for steps the player has earned, on a visible puzzle. A step that is not earned
+  has no link and no key anywhere in the response, and neither has the poster of an unearned video.
+  Every earned step is signed, step 1 included.
+- Links expire. Images and posters live 600 seconds by default (allowed 60 to 3600); a video lives
+  3600 seconds (allowed 600 to 86400), because the browser asks for new parts of a looping clip for
+  as long as it plays, and each request is checked. `expires_at` says when. A link is a bearer link:
+  anyone who has it can open it until it expires.
+- Refetch on failure: when a media request answers 403 or fails after `expires_at`, ask for the
+  view again (the puzzle route, or resume) and swap in the new links.
+- The key in a link is the file's SHA-256, never built from the date, game, step or answer.
+
+The local media route (`MEDIA_STORAGE=local`: development, tests, and production if the S3 check
+fails) is `GET` and `HEAD /v1/media/{key}?exp=<unix seconds>&sig=<signature>`. It is not in the
+OpenAPI document and the frontend never calls it through the generated client; it only loads
+the links above.
+
+- Checked in this order: the key (64 lowercase hex digits), the signature and the expiry, then the
+  puzzle the file belongs to, then `Range`. A bad key, a wrong signature or an expired link is 403
+  `invalid_media_link`, which says nothing about the file. A file of a puzzle that is not visible
+  (for example unscheduled after the link was issued) is 404 `puzzle_not_found`. The signature and
+  the expiry are checked on every request, a ranged one too.
+- A full answer is 200 with `Accept-Ranges: bytes`, the stored content type (`image/webp`,
+  `video/mp4` or `video/webm`, never guessed), `X-Content-Type-Options: nosniff` and
+  `Cache-Control: private, max-age=<seconds the link has left>`. Its 403, 404 and 416 also carry
+  `nosniff`.
+- Ranges: one valid `Range` gets 206 with `Content-Range` and only those bytes (`bytes=0-1`,
+  `bytes=100-` and `bytes=-500` all work, and an end past the file is cut to its last byte). A
+  `Range` that is malformed, or lies outside the file, gets 416 `range_not_satisfiable` with
+  `Content-Range: bytes */<size>`. Several ranges get the whole file with 200, not
+  `multipart/byteranges`. A unit other than `bytes` is ignored (200 with the whole file, RFC 9110
+  section 14.2), and empty list elements such as `bytes=0-1,` are accepted (section 5.6.1). Only a
+  `<video>` element sees a 416, so the frontend has no text for it.
+- With `MEDIA_STORAGE=s3` the links point at the bucket and the route answers 403 to everything.
+  A bucket link cannot add `X-Content-Type-Options`; the stored content type comes from the upload.
+  A bucket response carries `Cache-Control: private` and an `Expires` equal to the link's expiry,
+  so a browser never caches it past the link's lifetime.
+
+Limits for the files of a clue (AC-74b; the puzzle builder, M1-22, enforces them and may change them,
+and this table is then updated):
+
+| File | Content type | Codec and tracks | Duration | Size in pixels | Size in bytes |
+|---|---|---|---|---|---|
+| Video | `video/mp4` (required), `video/webm` (optional copy) | H.264 for MP4; no audio track | 8 to 15 seconds | at most 1280 by 720 | at most 4 MB |
+| Image, poster | `image/webp` | | | at most 1920 by 1080 | at most 1 MB |
+
+A clue has these files (AC-13b): an image clue has one image and no poster; a video clue has one MP4,
+at most one WebM and one poster. If a visible puzzle breaks this, the view is 500 `internal_error`.
 
 Caching (`Cache-Control`):
 
@@ -228,6 +326,8 @@ Caching (`Cache-Control`):
 | `GET /games/{slug}/titles` | `public, max-age=300` |
 | puzzle view (`today` and dated) | `private, no-store` |
 | `POST /games/{slug}/puzzles/{date}/guesses` | `private, no-store` |
+| `POST /games/{slug}/puzzles/{date}/resume` | `private, no-store` |
+| `GET` and `HEAD /v1/media/{key}`, 200 and 206 | `private, max-age=<seconds the link has left>` |
 | any error response, including every 404 | `no-store` |
 
 ## Health

@@ -545,6 +545,7 @@ No skill covers Postgres or Alembic specifically (gap filled with `docs`). Front
   - `REDIS_URL=redis://localhost:6390/0`
   - `TEST_REDIS_URL=redis://localhost:6390/1`
 - Do not edit `.env`. Stop the containers at the end.
+- Before any `alembic downgrade base` (the empty-database run), print `select current_database()` through the same `DATABASE_URL` and confirm it is the throwaway database. Never route it through a helper that resets `DATABASE_URL`. (In M1-13 a helper did, and `downgrade base` emptied the shared dev database; reseed with `ENVIRONMENT=local uv run python scripts/seed_dev.py` if it happens.)
 
 ### Per PR (run in `my-list-be/`)
 
@@ -596,6 +597,7 @@ Run with the dev seed (`uv run python scripts/seed_dev.py` with the four values 
 
 ## Risks
 
+- **Editing a puzzle that already has progress (owner, 2026-11-05, after the M1-13 review).** Account progress is rebuilt by replaying stored guesses, so changing a scheduled puzzle's answer, a stored title's kind, or a title name so two stored guesses normalize the same makes that replay fail, and every view, resume and guess for those accounts answers 500 for good. The builder (M1-22) and any admin tool must refuse such edits once a puzzle has progress rows. The same goes for title edits (`update_title`): renaming a title, or changing its kind, so that a stored game no longer replays (two stored guesses now share a normalized name, or a wrong guess now matches the answer) must be refused while any progress row references that title (found again in the M1-13 review). The dev seed's title updates are dev only.
 - **Title search speed on common words (owner, 2026-11-04, after M1-11).** The AC-24 bench passed (p95 90.6 ms at 50,000 titles) only after `VACUUM (ANALYZE)` and synthetic names with fewer stop words; the first run gave 259 ms, and a query like "the" still takes about 100 ms. Real game titles often start with "The". Recheck the p95 against the real title import (M1-22). Fallbacks if it misses 150 ms: a 3-character minimum, or ignoring stop words in the normalized query.
 - **uv version and `uv.lock`.** Local uv is 0.12.5; CI pins 0.13.6 (`ci.yml:19`). Adding boto3 in M1-18 rewrites the lock. Lock with `uvx uv@0.13.6 lock` (or `uv self update 0.13.6`) and check that only boto3, botocore, s3transfer, jmespath and their transitive needs were added. CI `uv sync --locked` is the proof.
 - **`alembic check` with the naming convention or GIN ops.** Autogenerate might report a spurious diff, for example on `postgresql_ops` or the renamed primary key. Mitigation: run `alembic check` locally in M1-10a and M1-11 before anything else. If a diff appears that the model cannot express, stop and report; do not silence it with `include_object` without the owner.
