@@ -136,9 +136,9 @@ repo-internal detail (stack choices, file layout) — only the seams between the
 ## Games
 
 Routes (all under `/v1`, so the frontend calls `/api/v1/games/...`). Game routes work for a guest
-with no cookie; none of them answers 401. Operation ids: `games_list_games`,
+with no cookie; none of them answers 401, except the stats route. Operation ids: `games_list_games`,
 `games_get_today_puzzle`, `games_get_puzzle`, `games_search_titles`, `games_submit_guess`,
-`games_resume_puzzle`.
+`games_resume_puzzle`, `games_get_stats`.
 
 - `GET /games` returns `{"items": [{"slug", "default_variant", "launch_date"}]}`: the enabled games
   only. Name, nav order and the default game stay in the frontend registry.
@@ -238,6 +238,39 @@ Resume:
   false` is a guest result: nothing was stored, so a client that still shows a user must switch to
   signed out (as for a 401) and keep its own guess list.
 
+Stats and streak:
+
+- `GET /games/{slug}/stats?variant=` needs a signed-in account. A guest gets 401
+  `not_authenticated`, even for an unknown `slug`. It answers 200 with `{"played", "wins",
+  "current_streak", "max_streak", "distribution"}` and `private, no-store`. `slug` and `variant`
+  (optional, default: the game's default variant) follow the same rules as the view and give 404
+  `game_not_found` or `variant_not_found`. The win rate is the client's to compute from `wins` and
+  `played`.
+- `distribution` is an object with the keys `"1"` to `"6"` (JSON keys are strings), each the number
+  of wins in that many guesses, zeros included. A skip counts as a guess.
+- `played` counts finished games (won or lost), daily and archive alike. A game in progress counts
+  for nothing.
+- Only games on puzzles that are still visible count, as in the archive: a puzzle later moved back
+  to draft, or now before the game's launch date, drops out of every field. A stored win with an
+  impossible guess count (outside 1 to 6) still counts in `played`, `wins` and the streak but has no
+  `distribution` bucket; the server logs a warning, never an error response (spec row T4).
+- A day counts for the streak when the game on that day's puzzle is finished (won or lost), its
+  `counts_for_streak` is true and the variant is the default. The streak day is the puzzle's date,
+  not the day it was finished. An archive play never fills a day.
+- The streak rule: walk the streak days in order. A gap of 1 to 3 missed days keeps the run and adds
+  nothing to it; a gap of 4 or more starts a new run at 1. `current_streak` is the last run's length
+  while at most 3 days were missed since the last streak day, not counting today (today is not
+  missed until it is over), and 0 otherwise. `max_streak` is the longest run.
+- For a variant other than the default, `current_streak` and `max_streak` are `null`; the other
+  fields count that variant's own games.
+- Stats are computed on every read from the stored games, never stored. They are the server's
+  numbers for an account; a guest has no stats route, so the browser computes its own from its
+  local history.
+- Shared test vectors: the tables S1 to S19 (streak) and T1 to T4 (counters) in SPEC-02 (AC-52,
+  AC-54, `specs/02-phase-1-backend-core-games.md`). The backend tests use their ids
+  (`tests/test_stats_rules.py`), and the frontend's guest stats must pass the same rows with the
+  same ids.
+
 The view (`type: "game_guesser"` tags it, so later games can add other types):
 
 - `type`, `slug`, `variant`, `date`, `number` (days since the game's launch date, plus 1), `status`
@@ -327,6 +360,7 @@ Caching (`Cache-Control`):
 | puzzle view (`today` and dated) | `private, no-store` |
 | `POST /games/{slug}/puzzles/{date}/guesses` | `private, no-store` |
 | `POST /games/{slug}/puzzles/{date}/resume` | `private, no-store` |
+| `GET /games/{slug}/stats` | `private, no-store` |
 | `GET` and `HEAD /v1/media/{key}`, 200 and 206 | `private, max-age=<seconds the link has left>` |
 | any error response, including every 404 | `no-store` |
 

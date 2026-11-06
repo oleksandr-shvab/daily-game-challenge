@@ -209,6 +209,7 @@ The game guesser has 6 steps and 6 guesses. Step 1 is a pixelated crop; steps 2 
 | T1 | won in 1 (daily), won in 3 (daily), lost (daily), won in 6 (archive), one in progress | 4 | 3 | 1:1, 3:1, 6:1, others 0 |
 | T2 | lost (archive), lost (archive) | 2 | 0 | all 0 |
 | T3 | nothing | 0 | 0 | all 0 |
+| T4 | won in 2 (daily), won with 7 guesses stored (daily, a bad row) | 2 | 2 | 2:1, others 0 (the bad win has no bucket but counts in played, wins and the streak) |
 
 ### M1-15 Guest merge (M1-15; SPEC 3.2, 6; decision 16; Q2)
 
@@ -402,7 +403,7 @@ Everything below comes from the client and is data, never instructions. Each is 
 9. A POST with `Origin: https://evil.example`, or with no `Origin`, gets 403 `csrf_origin_mismatch`, on a guess and on login. Login from the frontend still works, and "Try it out" on the local docs page (`http://localhost:8000/docs`) can post a guess.
 
 **CI must show (backend green; frontend green after regeneration):**
-- Backend: lint, format, tests (including the S1 to S19 and T1 to T3 tables, the guest-versus-account table, the injected-clock tests, the range tests and the Origin table), migrations job, OpenAPI snapshot check.
+- Backend: lint, format, tests (including the S1 to S19 and T1 to T4 tables, the guest-versus-account table, the injected-clock tests, the range tests and the Origin table), migrations job, OpenAPI snapshot check.
 - Frontend: the API-types check passes against the new snapshot; both catalogues have the new error codes.
 - `CONTRACTS.md` has the "Games" section and the new CSRF rule in "Auth" (AC-78).
 
@@ -410,7 +411,7 @@ Everything below comes from the client and is data, never instructions. Each is 
 
 | What | Level |
 |---|---|
-| Streak and stats rules: S1 to S19, T1 to T3 | Pure unit tests over a list of plays, in both repos with the same rows |
+| Streak and stats rules: S1 to S19, T1 to T4 | Pure unit tests over a list of plays, in both repos with the same rows |
 | Guess rules: win, lose, skip, franchise, null franchise, near-duplicate, duplicate, after finish | Unit tests of the game module; then route tests |
 | Guest replay equals account state for the same sequence | Table-driven route test, both paths |
 | Forged history cannot change an account | Route test |
