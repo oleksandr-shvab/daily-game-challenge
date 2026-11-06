@@ -138,7 +138,7 @@ repo-internal detail (stack choices, file layout) — only the seams between the
 Routes (all under `/v1`, so the frontend calls `/api/v1/games/...`). Game routes work for a guest
 with no cookie; none of them answers 401, except the stats route. Operation ids: `games_list_games`,
 `games_get_today_puzzle`, `games_get_puzzle`, `games_search_titles`, `games_submit_guess`,
-`games_resume_puzzle`, `games_get_stats`.
+`games_resume_puzzle`, `games_get_stats`, `games_list_archive`.
 
 - `GET /games` returns `{"items": [{"slug", "default_variant", "launch_date"}]}`: the enabled games
   only. Name, nav order and the default game stay in the frontend registry.
@@ -271,6 +271,35 @@ Stats and streak:
   (`tests/test_stats_rules.py`), and the frontend's guest stats must pass the same rows with the
   same ids.
 
+Archive:
+
+- `GET /games/{slug}/archive?variant=&before=&limit=` (`games_list_archive`) lists the visible past
+  puzzles of the game, newest first, as `{"items": [{"date", "number", "state", "guesses_used"}],
+  "next_before"}`. Like every game route it works for a guest with no cookie. `private, no-store`.
+- `slug` and `variant` follow the same rules and give the same 404s as the view (`game_not_found`,
+  `variant_not_found`). There is no `puzzle_not_found`: a day with no visible puzzle (a gap, a
+  draft, a day before the launch date) is simply not in the list. Nothing in an item is an answer.
+- `before` is a day (`YYYY-MM-DD`, strict like `date`), and only days strictly before it are listed.
+  It defaults to today, and a later value is treated as today, so today and the future are never
+  listed: today's puzzle is played through `/puzzles/today`. A bad `before` is 422
+  `validation_error` with `field: "before"` (code `invalid_value`).
+- `limit` is 1 to 100 and defaults to 30. Outside that, or not a number, it is 422
+  `validation_error` with `field: "limit"` and code `too_small` (`params: {"min": 1}`),
+  `too_large` (`params: {"max": 100}`) or `invalid_type` (not a number).
+- `next_before` is the date of the last item when more puzzles follow, else `null` (also `null`
+  when the page is exactly the last one). To read the next page, send it back as `before`, with the
+  same `variant` and `limit`. Dates are unique per game and variant, so no puzzle repeats or is
+  skipped between pages.
+- `number` is the same number the puzzle view shows (days since the game's launch date, plus 1).
+- A guest gets `state: null` and `guesses_used: null`: its progress is in the browser, which fills
+  both in. An account gets `state`, one of `not_played`, `in_progress`, `won`, `lost`, from the
+  server's stored game, and `guesses_used`, the number of stored guesses with skips counted (`0`
+  for `not_played`). It sees only its own games.
+- A past puzzle is played through the same view, resume and guess routes as today's. Its
+  `counts_for_streak` is `false`, because the server's UTC date is not the puzzle's date. A finished
+  archive play counts in the stats (`played`, `wins`, `distribution`) but never fills a streak day
+  (see "Stats and streak").
+
 The view (`type: "game_guesser"` tags it, so later games can add other types):
 
 - `type`, `slug`, `variant`, `date`, `number` (days since the game's launch date, plus 1), `status`
@@ -360,6 +389,7 @@ Caching (`Cache-Control`):
 | puzzle view (`today` and dated) | `private, no-store` |
 | `POST /games/{slug}/puzzles/{date}/guesses` | `private, no-store` |
 | `POST /games/{slug}/puzzles/{date}/resume` | `private, no-store` |
+| `GET /games/{slug}/archive` | `private, no-store` |
 | `GET /games/{slug}/stats` | `private, no-store` |
 | `GET` and `HEAD /v1/media/{key}`, 200 and 206 | `private, max-age=<seconds the link has left>` |
 | any error response, including every 404 | `no-store` |
