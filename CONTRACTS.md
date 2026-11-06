@@ -136,9 +136,9 @@ repo-internal detail (stack choices, file layout) — only the seams between the
 ## Games
 
 Routes (all under `/v1`, so the frontend calls `/api/v1/games/...`). Game routes work for a guest
-with no cookie; none of them answers 401, except the stats route. Operation ids: `games_list_games`,
+with no cookie; none of them answers 401, except the stats and merge routes. Operation ids: `games_list_games`,
 `games_get_today_puzzle`, `games_get_puzzle`, `games_search_titles`, `games_submit_guess`,
-`games_resume_puzzle`, `games_get_stats`, `games_list_archive`.
+`games_resume_puzzle`, `games_get_stats`, `games_merge_progress`, `games_list_archive`.
 
 - `GET /games` returns `{"items": [{"slug", "default_variant", "launch_date"}]}`: the enabled games
   only. Name, nav order and the default game stay in the frontend registry.
@@ -271,6 +271,52 @@ Stats and streak:
   (`tests/test_stats_rules.py`), and the frontend's guest stats must pass the same rows with the
   same ids.
 
+Merge of a guest's local games:
+
+- `POST /games/{slug}/progress/merge` with `{"entries": [{"date", "variant", "guesses",
+  "played_as_daily", "daily_proof"}]}` moves the games a guest played in this browser into the signed-in account.
+  A guest gets 401 `not_authenticated`. `slug` gives 404 `game_not_found` for the whole request. It
+  answers 200 with `{"stored", "already_present", "rejected", "daily_unproven",
+  "rejected_entries": [{"date", "variant", "code"}]}` and `private, no-store`. The route needs an allowed `Origin` and a JSON body,
+  like every POST.
+- When to call it: once, right after the guest signs in or registers, with the local history of the
+  game. Send the entries in chunks of at most 500 (more is 422 `validation_error` with
+  `errors: [{"field": "entries", "code": "too_long", "params": {"max": 500}}]`, and nothing is
+  stored). Clear the local games only after every chunk answered 200.
+- An entry is `date` (`YYYY-MM-DD`, strict like the puzzle `date`), `variant` (the game's variant
+  name, at most 32 characters), `guesses` (the whole game in order, `null` for a skip: a title id
+  or `null`, at most 20 items in the body, and a game has 1 to 6) and `played_as_daily` (a boolean,
+  true when the guest began that puzzle on its own day) and `daily_proof` (the string the server put in
+  the guest's view of that puzzle on its own day, or `null`; at most 100 characters). There is no outcome field: the server
+  replays `guesses` through the same rules as a guess and decides won, lost or in progress. Extra
+  fields are ignored. A malformed entry (a bad date, a non-boolean flag, more than 20 guesses)
+  is 422 `validation_error` for the whole request, with the field `entries.<index>.<name>`.
+- The server stores each good entry as the account's game on that puzzle with `origin: merge`. Its
+  `counts_for_streak` is true only when `played_as_daily` is true AND `daily_proof` is the server's
+  proof for that game, variant and date. With a missing or wrong proof the entry is still stored, as
+  an archive play (`counts_for_streak: false`), and counted in `daily_unproven` (which is not part of
+  the sum below). A finished game counts in the stats like any other; one that is still in progress can be
+  continued with the guess route. The stored times are the time of the request.
+- Each entry is checked in this order, and the first failing check decides. 1) It has 1 to 6
+  guesses, else `invalid_guess_history`. 2) Its variant exists, else `variant_not_found`. 3) Its
+  puzzle exists and is visible, else `puzzle_not_found` (a draft, the future, before the launch
+  date, no puzzle that day). 4) If the account already has a game on that puzzle, the entry is
+  counted in `already_present` without being replayed, valid or not, and the account's game is not
+  changed: the account wins. 5) Its guesses replay as a game, else `invalid_guess_history` (an
+  unknown title, a repeated title, or a guess after the game ended). A rejected entry is listed in
+  `rejected_entries`, in request order, with its `date`, `variant` and one `code`; the other
+  entries still merge. When one request has two
+  entries for the same date and variant, the first that passes every check is stored and any later
+  one counts as `already_present`.
+- `stored + already_present + rejected` is the number of entries sent.
+- Safe to retry: sending the same request again stores nothing new and leaves the stats as they
+  were (every entry whose puzzle the account now has a game on counts as `already_present`, including one
+  that was rejected the first time because another entry for the same puzzle was stored; the rest
+  are rejected again with the same code),
+  so the client may retry after a network error or send chunks in any number of requests.
+- A merge can also get 503 `service_unavailable` when a game of the account was busy for more than
+  5 seconds, or when two merges of the same account collided. Nothing was stored, so the same request may be sent again.
+
 Archive:
 
 - `GET /games/{slug}/archive?variant=&before=&limit=` (`games_list_archive`) lists the visible past
@@ -305,7 +351,7 @@ The view (`type: "game_guesser"` tags it, so later games can add other types):
 - `type`, `slug`, `variant`, `date`, `number` (days since the game's launch date, plus 1), `status`
   (`in_progress`, `won`, `lost`), `max_guesses` (6), `guesses_used`, `guesses_left`, `guesses`
   (each `title_id`, `name`, `result`; a skip has null `title_id` and `name`), `steps`, `answer`,
-  `counts_for_streak` and `signed_in`.
+  `counts_for_streak`, `signed_in` and `daily_proof`.
 - `steps` holds only the steps earned so far: steps 1 to `guesses_used + 1` while the game is in
   progress, all six at the end. Each step is `step`, `hint` (`{"kind", "value"}`, or `null` when the
   step has no hint), `media` (see "Clue media") and `source_url` (`null` until the game ends).
@@ -317,6 +363,10 @@ The view (`type: "game_guesser"` tags it, so later games can add other types):
 - `signed_in` is true when the request has a valid session. A game response with `signed_in: false`
   while the frontend shows a user means the session ended; the frontend switches to signed out, as
   for a 401.
+- `daily_proof` is a string only in a guest's view of a puzzle on that puzzle's own UTC day (the
+  view, today's view, a guess or a resume); otherwise `null`, and always `null` for an account. The
+  browser keeps it with the local game and sends it back on merge, so the merged game can count for
+  the streak. It does not expire and is not tied to a session.
 
 Clue media:
 
@@ -389,6 +439,7 @@ Caching (`Cache-Control`):
 | puzzle view (`today` and dated) | `private, no-store` |
 | `POST /games/{slug}/puzzles/{date}/guesses` | `private, no-store` |
 | `POST /games/{slug}/puzzles/{date}/resume` | `private, no-store` |
+| `POST /games/{slug}/progress/merge` | `private, no-store` |
 | `GET /games/{slug}/archive` | `private, no-store` |
 | `GET /games/{slug}/stats` | `private, no-store` |
 | `GET` and `HEAD /v1/media/{key}`, 200 and 206 | `private, max-age=<seconds the link has left>` |

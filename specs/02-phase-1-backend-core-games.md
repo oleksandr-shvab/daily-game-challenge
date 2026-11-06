@@ -22,7 +22,7 @@ The owner answered all 17 questions, then Q18 to Q20, which came out of the Q4 a
 | # | Question | Answer | Criteria affected |
 |---|---|---|---|
 | Q1 | A daily play starts before 00:00 UTC and ends after it: daily or archive? | Accepted: daily if the first guess reaches the server on the puzzle's UTC date; stored once, never changed | AC-36, AC-40, AC-49, AC-52 (S18, S19) |
-| Q2 | Guest merge: what does the server trust? | Accepted: replay the guesses, trust the "played as daily" flag; merged rows marked `origin = merge`; the account's row wins; at most 500 entries per request | AC-55 to AC-62 |
+| Q2 | Guest merge: what does the server trust? | Accepted: replay the guesses, trust the "played as daily" flag; merged rows marked `origin = merge`; the account's row wins; at most 500 entries per request. **Changed 2026-11-06 by the owner after the M1-15 review:** the flag alone let any account repair a streak, so it is trusted only with a server-signed `daily_proof` that the guest received on the puzzle's own day (see AC-57). | AC-55 to AC-62 |
 | Q3 | Grace example: played on day 1 and day 5. Streak 2? | Accepted: yes, 2. Day 1 and day 6 gives 1. Today is not missed until it is over | AC-49 to AC-53 |
 | **Q4** | Step 6: image or video? | **A video in Milestone 1** (not the default). A muted, looping, autoplaying clip of about 12 seconds that plays inline like a GIF. H.264 MP4 is required; a WebM copy is optional. Media type `video` for step 6, `image` for steps 1 to 5 | AC-13, AC-13b, AC-25, AC-26, AC-70, AC-70b, AC-72, AC-72b, AC-72c, AC-74b, AC-77, AC-82 |
 | Q5 | Status flow and puzzle routes | Accepted: `draft`, `in_review`, `approved`, `scheduled` (no `published`); visibility in one function; `GET .../puzzles/{date}` with a `/today` alias; optional `?variant=` | AC-9 to AC-12, AC-14 to AC-17 |
@@ -215,7 +215,7 @@ The game guesser has 6 steps and 6 guesses. Step 1 is a pixelated crop; steps 2 
 
 - **AC-55** `POST /v1/games/{slug}/progress/merge` shall take `{entries: [{date, variant, guesses, played_as_daily}]}` for the signed-in account. A guest request shall get 401 `not_authenticated`.
 - **AC-56** For each entry, the system shall replay `guesses` through the same check as a guess (AC-27 to AC-33) and store the resulting status. The client never sends an outcome, and none is trusted.
-- **AC-57** WHEN an entry is stored, the system shall set `origin: merge` and `counts_for_streak` from `played_as_daily` (Q2).
+- **AC-57** WHEN an entry is stored, the system shall set `origin: merge` and `counts_for_streak` to `played_as_daily` only when the entry carries a valid `daily_proof` for its game, variant and date; otherwise `counts_for_streak` is false and the entry still merges as an archive play (Q2, changed). A guest's view of a puzzle on that puzzle's UTC day carries the `daily_proof`; every other view carries `null`.
 - **AC-58** IF the account already has progress for that puzzle, THEN the system shall keep the account's row unchanged and skip the entry (Q2).
 - **AC-59** IF an entry names a puzzle that is not visible, an unknown variant, or guesses that fail AC-39's rules, THEN the system shall skip that entry and report it, and shall still merge the others.
 - **AC-60** The response shall report the counts of stored, already-present and rejected entries, and for each rejected entry its `date`, `variant` and a `code`.
