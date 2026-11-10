@@ -355,6 +355,10 @@ The view (`type: "game_guesser"` tags it, so later games can add other types):
 - `steps` holds only the steps earned so far: steps 1 to `guesses_used + 1` while the game is in
   progress, all six at the end. Each step is `step`, `hint` (`{"kind", "value"}`, or `null` when the
   step has no hint), `media` (see "Clue media") and `source_url` (`null` until the game ends).
+- `hint.kind` is a free string. The kinds today are `metacritic_score`, `platform`, `genre`, `year`
+  and `developer`. The frontend shows any other kind under a generic "Hint" label, so a new kind
+  stays visible with no frontend change and only needs a label to read well. `hint.value` is
+  English (decision 32).
 - `answer` is `null` until the game ends, then `{"title_id", "name", "franchise", "year"}`. The
   response holds no internal puzzle or progress id.
 - `counts_for_streak` is `null` for a guest on every read and after its first guess (see
