@@ -86,6 +86,8 @@ The feature spec for this phase is [specs/02-phase-1-backend-core-games.md](spec
 
 ### Phase 3: content for the game (about 4 days, partly parallel with Phase 2)
 
+The feature spec for this phase is [specs/04-phase-3-content.md](specs/04-phase-3-content.md) (SPEC-04, agreed with the owner's answers of 2026-11-12, decisions 68 and 69). The plans are [plans/04-phase-3-backend.md](plans/04-phase-3-backend.md) and [plans/04-phase-3-frontend.md](plans/04-phase-3-frontend.md).
+
 | ID | Task | Repo | Est. | Depends | Done when |
 |---|---|---|---|---|---|
 | M1-20 | IGDB access and a client in the puzzle script (title list, franchise, year, platform, genre, developer, critic score, screenshots); terms checked at signup | BE (scripts) | 1.0 | D2 | script lists 5 games with all fields |
@@ -94,6 +96,7 @@ The feature spec for this phase is [specs/02-phase-1-backend-core-games.md](spec
 | M1-23 | Source credit per puzzle (image source URL kept) and the credits page after a game ends (SPEC 3.7) | BE, FE | 0.5 | M1-22 | credits visible after the game |
 | M1-24 | Review queue: a CLI or a tiny local page to approve or reject drafts; schedule 30 or more puzzles | BE (scripts) | 0.6 | M1-22, D5 | 30 approved, scheduled puzzles |
 | M1-25 | Alert when the scheduled buffer drops under 7 days and when tomorrow's puzzle is missing | BE | 0.3 | M1-24 | the check runs and exits non-zero |
+| M1-24c | Promote approved puzzles (rows and files) from the local content database to a target, and set the game's launch date (`manage_game.py`); refuses a non-local target until IGDB clears images (decision 69) | BE (scripts) | 0.3 | M1-24 | approved puzzles appear on the target with their files |
 
 ### Phase 4: production hardening (about 4.3 days)
 
