@@ -130,7 +130,7 @@ If IGDB says no and the owner does not accept the risk, the fallback of `MILESTO
 | `app/content/buffer_check.py` (new), `scripts/check_puzzle_buffer.py` (new) | Tomorrow and buffer check | M1-25 |
 | `app/content/promote.py`, `scripts/promote_puzzles.py`, `scripts/manage_game.py` (all new) | Copy approved puzzles to a target; launch date | M1-24c |
 | `my-list-be/CLAUDE.md`, `.env.example` | A "Content" section grown per PR; new settings | every PR |
-| Root `CONTRACTS.md` "Games", "The view" (`:355-361`) | `critic_score` replaces `metacritic_score` in the hint kinds; `source_url` is the game's igdb.com page | M1-22b (platform commit) |
+| Root `CONTRACTS.md` "Games", "The view" (`:355-361`) | `critic_score` replaces `metacritic_score` in the hint kinds; `source_url` is the game's igdb.com page; the file-limits table says 1 MB = 1,048,576 bytes (owner, 2026-11-13, decision 70) | M1-22b (platform commit) |
 
 Not touched: `app/main.py`, `app/api/`, every route and response schema, `openapi/openapi.json`, `.github/workflows/ci.yml`, `app/auth/`.
 
@@ -411,7 +411,7 @@ Frontend skills (`shvab:react-*`, `shvab:zod`, `shvab:react-testing-library`) do
 | M1-20 | `tests/test_igdb_client.py` | Retry bounded; foreign host refused before sending; no secret in any captured log (`caplog`) |
 | M1-21 | `tests/test_titles_import.py tests/test_title_search.py` | Second run changes nothing; AC-18 refusal counted |
 | M1-22c | `tests/test_content_media.py` | Limits table; clip without audio; spike result in the PR text |
-| M1-22b | `tests/test_content_seed.py tests/test_candidates.py tests/test_hints.py tests/test_games.py` | Funnel adds up; 84.5 gives "85"; seed differs with another salt; `git diff` of the platform repo shows only the `CONTRACTS.md` paragraph |
+| M1-22b | `tests/test_content_seed.py tests/test_candidates.py tests/test_hints.py tests/test_games.py` | Funnel adds up; 84.5 gives "85"; seed differs with another salt; `git diff` of the platform repo shows only the `CONTRACTS.md` paragraph and the MB definition line |
 | M1-22d | `tests/test_builder.py` | Atomic write; second run adds nothing; dry run writes nothing; gates refuse before any fetch |
 | M1-24a | `tests/test_review.py` | Foreign Origin, missing token, foreign Host refused |
 | M1-24b | `tests/test_schedule.py tests/test_games.py` | Series rule; today locked; the AC-13b view table unchanged |
