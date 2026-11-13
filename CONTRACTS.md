@@ -355,10 +355,14 @@ The view (`type: "game_guesser"` tags it, so later games can add other types):
 - `steps` holds only the steps earned so far: steps 1 to `guesses_used + 1` while the game is in
   progress, all six at the end. Each step is `step`, `hint` (`{"kind", "value"}`, or `null` when the
   step has no hint), `media` (see "Clue media") and `source_url` (`null` until the game ends).
-- `hint.kind` is a free string. The kinds today are `metacritic_score`, `platform`, `genre`, `year`
-  and `developer`. The frontend shows any other kind under a generic "Hint" label, so a new kind
-  stays visible with no frontend change and only needs a label to read well. `hint.value` is
-  English (decision 32).
+- `source_url`, once the game has ended, is the game's page on igdb.com
+  (`https://www.igdb.com/games/<slug>`) for every clue made from IGDB screenshots, the clip
+  included. It is a plain link the frontend shows as a source; it never carries a signed link.
+- `hint.kind` is a free string. The kinds today are `critic_score` (IGDB's aggregated critic score,
+  a whole number, shown only when at least 4 critic scores back it), `platform`, `genre`, `year` and
+  `developer`. `metacritic_score` is no longer produced. The frontend shows any other kind under a
+  generic "Hint" label, so a new kind stays visible with no frontend change and only needs a label
+  to read well. `hint.value` is English (decision 32).
 - `answer` is `null` until the game ends, then `{"title_id", "name", "franchise", "year"}`. The
   response holds no internal puzzle or progress id.
 - `counts_for_streak` is `null` for a guest on every read and after its first guess (see
@@ -425,6 +429,8 @@ the links above.
 
 Limits for the files of a clue (AC-74b; the puzzle builder, M1-22, enforces them and may change them,
 and this table is then updated):
+
+1 MB in this table means 1,048,576 bytes (decision 70).
 
 | File | Content type | Codec and tracks | Duration | Size in pixels | Size in bytes |
 |---|---|---|---|---|---|
