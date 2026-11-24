@@ -10,7 +10,7 @@ This folder is the small platform repo (its `.gitignore` excludes the two app fo
 - `my-list-fe/` — Vite + React + TypeScript SPA (TanStack Router/Query, Zustand, axios). Commands and architecture: `my-list-fe/CLAUDE.md`.
 - `CONTRACTS.md` — the FE/BE seam: API routing, auth cookie, password flows, errors, health endpoints, OpenAPI types.
 - `SPEC.md` — the product and game spec; `ARCHITECTURE.md` — the technical decisions for running it in production.
-- `compose.prod.yml` — the production stack (Caddy with the built SPA, API, one-shot migration, Postgres, Redis). `compose.admin.yml` — an override that publishes Postgres on `127.0.0.1:5434` only. `deploy/` — `localhost.vars` (dummy values for the local run), `production.vars.example` (placeholders), `smoke.sh` (12 checks against a running stack), `check-vars.sh` (refuses a vars file with placeholders).
+- `compose.prod.yml` — the production stack (Caddy with the built SPA, API, one-shot migration, Postgres, Redis). `compose.admin.yml` — an override that publishes Postgres on `127.0.0.1:5434` only. `deploy/` — `localhost.vars` (dummy values for the local run), `production.vars.example` (placeholders), `smoke.sh` (12 checks against a running stack), `check-vars.sh` (refuses a vars file with placeholders). `docs/runbooks/launch.md` — the launch runbook: trying the stack locally, and every step that needs a server or a domain.
 
 Run commands from inside the repo they belong to (`cd my-list-be && uv run pytest`, `cd my-list-fe && npm run dev`). Run `git` inside the repo a change belongs to; run it from this folder only for the specs and `CONTRACTS.md`. Repo-internal rules live in the repo `CLAUDE.md` files and are not repeated here.
 

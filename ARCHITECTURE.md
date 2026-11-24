@@ -86,6 +86,8 @@ Recommended option first. These are asked in batches and recorded in `SPEC.md` s
 
 **Progress, 2026-11-24: Playwright and axe run in the frontend CI** (M1-50, frontend #39, backend #34, decision 78). `my-list-fe/e2e/` holds 5 smoke journeys on Chromium at desktop, phone and tablet sizes against Postgres and Redis service containers and the backend checked out at `main`; it runs on pull requests, pushes to main and nightly. The load test (task 10's other half) is still open (M1-51).
 
+**Progress, 2026-11-24: the production image and Compose stack run locally** (M1-40, plan 06, decisions 79 and 81; backend #35, frontend #42, platform `compose.prod.yml`). Each app repo has a non-root, digest-pinned Dockerfile built in its CI (nothing is pushed). The frontend image is Caddy with the built SPA, and its Caddyfile owns every header and the CSP. `compose.prod.yml` runs `web`, `backend`, a one-shot `migrate`, Postgres and Redis on two networks; only `web` publishes ports. `deploy/smoke.sh` runs 12 checks at `https://dgc.localhost` with `ENVIRONMENT=production`. Nothing is deployed: the server, domain, backups, deploy workflow, monitor and the rest of the hosting steps are in `docs/runbooks/launch.md` (M1-52 and the checklist above stay open).
+
 ## 4. Configuration, secrets and environments
 
 - **Backend config.** pydantic-settings is already in use. Make `ENVIRONMENT` a `Literal["local","test","staging","production"]`, use `SecretStr` for secrets, remove `TEST_DATABASE_URL` from production settings, and add a startup check that refuses to boot outside local on a placeholder `SECRET_KEY`, on non-HTTPS cookies or on localhost origins. `.env` files are for local only; real environments get variables from Compose.

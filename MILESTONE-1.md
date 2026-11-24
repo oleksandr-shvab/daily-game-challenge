@@ -104,7 +104,7 @@ The feature spec for this phase is [specs/04-phase-3-content.md](specs/04-phase-
 
 | ID | Task | Repo | Est. | Depends | Done when |
 |---|---|---|---|---|---|
-| M1-40 | Dockerfiles for both apps (multi-stage, non-root), production Compose, Caddy (same origin, security headers, CSP with `wasm-unsafe-eval` only if needed, `index.html` no-cache, hashed assets immutable, `/healthz` and `/readyz` hidden) | PL, BE, FE | 1.5 | none | the whole site runs from Compose on this laptop |
+| M1-40 | Dockerfiles for both apps (multi-stage, non-root), production Compose, Caddy (same origin, security headers, CSP with `wasm-unsafe-eval` only if needed, `index.html` no-cache, hashed assets immutable, `/healthz` and `/readyz` hidden) | PL, BE, FE | 1.5 | none | the whole site runs from Compose on this laptop. **Done 2026-11-24:** backend #35, frontend #42, then in the platform repo `compose.prod.yml`, `compose.admin.yml`, `deploy/` (vars files, `check-vars.sh`, 12 smoke checks) and the launch runbook `docs/runbooks/launch.md`; the whole site runs at `https://dgc.localhost` with `ENVIRONMENT=production`, and nothing was deployed (decisions 79 and 81) |
 | M1-42 | Rate limits (login, register, forgot-password, guess endpoints) with `limits` and Redis; `429` with `Retry-After` | BE | 0.8 | none | tests; limit values in settings |
 | M1-43 | Real email sending through a queue (arq behind a thin interface), SPF, DKIM and DMARC on the sending subdomain | BE | 1.0 | D3, D4 | a reset email arrives in Gmail and a Russian mailbox |
 | M1-44 | Account deletion and data export (`DELETE /v1/me`, `GET /v1/me/export`), audit-log table | BE, FE | 1.0 | none | deletion removes the account and sessions |
@@ -128,7 +128,7 @@ Remaining work in order. "Runbook" means the part that needs a server or a domai
 
 | # | Task | Local scope | Runbook part | State |
 |---|---|---|---|---|
-| 1 | M1-40 Docker (plan 06) | BE-D1 backend #35, FE-D1 frontend #42, then PL-D1 Compose + smoke at `https://dgc.localhost`, PL-D2 launch runbook | server, domain, real certificate | BE-D1 and FE-D1 open, green |
+| 1 | M1-40 Docker (plan 06) | BE-D1 backend #35, FE-D1 frontend #42, then PL-D1 Compose + smoke at `https://dgc.localhost`, PL-D2 launch runbook | server, domain, real certificate: written in `docs/runbooks/launch.md` parts B and C | done 2026-11-24 |
 | 2 | Security hardening (plan 07, includes M1-42 and M1-53) | 9 PRs: rate limits, dependency audits and Dependabot, auth fixes, redirect cap, security logs, required `ENVIRONMENT` | DNS items O-1 to O-4 | planned |
 | 3 | M1-44 Account deletion and export | `DELETE /v1/me`, `GET /v1/me/export`, profile buttons, audit-log table; a short spec first | none | not started |
 | 4 | M1-47 Share card | static share image and meta tags | absolute URLs on the real domain | not started |
