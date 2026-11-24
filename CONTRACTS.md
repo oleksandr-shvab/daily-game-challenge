@@ -82,8 +82,10 @@ repo-internal detail (stack choices, file layout) — only the seams between the
   reset-flow token) — the user is logged out everywhere and must log in again with
   the new password. Frontend should not assume any pre-existing session/cookie
   still works after a reset completes.
-- Not yet implemented: there's no rate limiting on `forgot-password` — a known gap,
-  not something to imply otherwise in frontend UX copy.
+- `forgot-password` is rate limited per IP (10 an hour) and per email (3 an hour). Over the IP
+  limit it answers `429` (see "Rate limits"). Over the email limit it still answers the same `202`
+  and sends nothing, so the response never shows that an email was tried before. Do not write UX
+  copy that promises an email arrives.
 
 ### Password update (authenticated)
 
@@ -123,7 +125,8 @@ repo-internal detail (stack choices, file layout) — only the seams between the
   `puzzle_already_finished` (409), see "Games",
   `invalid_media_link` (403) and `range_not_satisfiable` (416), see "Clue media",
   `bad_request` (400: a body the JSON parser rejects before validation, for example a number longer
-  than 4300 digits), `service_unavailable` (503), `internal_error` (500). Every `application/problem+json` error
+  than 4300 digits), `too_many_requests` (429, see "Rate limits"), `service_unavailable` (503),
+  `internal_error` (500). Every `application/problem+json` error
   response carries `Cache-Control: no-store` and `X-Content-Type-Options: nosniff`
   (CORSMiddleware's own plain-text 400 on a refused preflight, dev only, is not one of them).
 - Every response carries `X-Request-ID` (the proxy's value if well formed, else generated) and the
@@ -132,6 +135,38 @@ repo-internal detail (stack choices, file layout) — only the seams between the
   shows texts looked up by `code` in its English and Russian catalogues (`errors.<code>`; an unknown code shows a generic text, never the backend's English); a response without a JSON body (a proxy error page) becomes
   `code: "http_error"`, and no response at all becomes `status: 0, code: "network_error"`.
 - Success bodies are unchanged. The `202` of `forgot-password` still returns `{"detail": "..."}`.
+
+### Rate limits
+
+- A route over its limit answers `429` with `code: "too_many_requests"` and a `Retry-After` header
+  (whole seconds until the window ends, at least 1). The frontend's query retry already treats 429
+  as retryable at most twice, and `errors.too_many_requests` exists in both catalogues.
+- Fixed windows counted in Redis, per client address (an IPv6 address counts as its /64) or per
+  hashed email. The counts are backend settings (`RATE_LIMIT_*`); the windows are fixed:
+
+  | Route | Key | Default | Window |
+  |---|---|---|---|
+  | `POST /auth/login` | IP, and separately the email | 10 and 10 | 1 min, 15 min |
+  | `POST /auth/register` | IP | 10 | 1 hour |
+  | `POST /auth/forgot-password` | IP (429); the email (silent 202) | 10; 3 | 1 hour |
+  | `POST /auth/update-password` | user id | 10 | 1 hour |
+  | `POST /auth/reset-password` | IP | 10 | 1 hour |
+  | `POST /games/{slug}/puzzles/{date}/guesses` | IP | 60 | 1 min |
+  | `GET /games/{slug}/titles` | IP | 120 | 1 min |
+
+  `update-password` and `reset-password` share one setting, `RATE_LIMIT_PASSWORD_CHANGE`.
+- The limit is checked before the route's own work but after the request body is validated, so a
+  malformed request is a `422` and is not counted.
+- A per-email login limit means someone who knows an email can lock that email out of logging in
+  for 15 minutes. This is accepted at this size.
+- Per-IP limits need the real client address. Behind the proxy, uvicorn runs with `--proxy-headers`
+  and trusts the `X-Forwarded-For` that Caddy sets itself; Caddy must not trust a client's value
+  (keep `trusted_proxies` unset). If this breaks, every visitor shares one address.
+- If Redis fails, the limiter lets the request through.
+- The e2e suite registers and logs in from one address, so its backend config raises every
+  `RATE_LIMIT_*` count to 1000.
+- A guest's guess stores nothing, so the response must say whether it is right. A script can try
+  titles until one is correct; the guess limit only makes that slow (SPEC decision 80).
 
 ## Games
 
