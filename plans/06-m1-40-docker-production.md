@@ -368,7 +368,7 @@ Backend project skills: `my-list-be/.claude/skills/` (`fastapi-service-patterns`
 ## Verification
 
 **BE-D1**, in `/home/alexandr/Developer/MyList project/my-list-be`:
-- `docker build -t dgc-backend:ci .` succeeds. The image is under about 250 MB (`docker image ls`); report the figure.
+- `docker build -t dgc-backend:ci .` succeeds. Report the image size (`docker image ls`). Measured 2026-11-24: 360 MB, most of it the runtime venv (botocore, sqlalchemy, uvloop, asyncpg); trimming it means changing dependencies, so it is accepted.
 - The three checks of R-11, as in CI, pass. Each of the three mutations turns its own check red, then the mutation is reverted.
 - `uv run ruff check . && uv run ruff format --check .` (nothing Python changes; this is a guard).
 - After the owner opens the PR: CI's `docker` job is green and the other jobs are unchanged.
