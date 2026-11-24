@@ -10,7 +10,7 @@ This folder is the small platform repo (its `.gitignore` excludes the two app fo
 - `my-list-fe/` — Vite + React + TypeScript SPA (TanStack Router/Query, Zustand, axios). Commands and architecture: `my-list-fe/CLAUDE.md`.
 - `CONTRACTS.md` — the FE/BE seam: API routing, auth cookie, password flows, errors, health endpoints, OpenAPI types.
 - `SPEC.md` — the product and game spec; `ARCHITECTURE.md` — the technical decisions for running it in production.
-- `compose.prod.yml` — the production stack (Caddy with the built SPA, API, one-shot migration, Postgres, Redis). `compose.admin.yml` — an override that publishes Postgres on `127.0.0.1:5434` only. `deploy/` — `localhost.vars` (dummy values for the local run), `production.vars.example` (placeholders), `smoke.sh` (12 checks against a running stack).
+- `compose.prod.yml` — the production stack (Caddy with the built SPA, API, one-shot migration, Postgres, Redis). `compose.admin.yml` — an override that publishes Postgres on `127.0.0.1:5434` only. `deploy/` — `localhost.vars` (dummy values for the local run), `production.vars.example` (placeholders), `smoke.sh` (12 checks against a running stack), `check-vars.sh` (refuses a vars file with placeholders).
 
 Run commands from inside the repo they belong to (`cd my-list-be && uv run pytest`, `cd my-list-fe && npm run dev`). Run `git` inside the repo a change belongs to; run it from this folder only for the specs and `CONTRACTS.md`. Repo-internal rules live in the repo `CLAUDE.md` files and are not repeated here.
 
@@ -40,5 +40,7 @@ docker compose -f compose.prod.yml --env-file deploy/localhost.vars down     # a
 
 - The plain-http port is published on 8080 (`HTTP_PORT` in the vars file), because port 80 is often taken on a laptop. The redirect still says `https://dgc.localhost/`: Caddy's `http_port` and `https_port` options are for the server's inside, and do not change the `Location` header. Keep `HTTPS_PORT` at 443.
 - Browsers send `*.localhost` to loopback by themselves. Caddy signs the certificate with its own local CA: accept the warning once, or import `/data/caddy/pki/authorities/local/root.crt` from the `web` container (`docker compose cp web:/data/caddy/pki/authorities/local/root.crt .`).
-- Check 12 stops the backend for a few seconds to get a 502 from Caddy.
+- Check 12 stops the backend for a few seconds to get a 502 from Caddy. Checks 9 and 10 send one login and one register, which the backend's per-IP limits count (every local request comes from the Docker gateway address). On a 429 they print `skip` with the Retry-After value, not a failure. To rerun sooner, `docker compose -f compose.prod.yml --env-file deploy/localhost.vars exec redis redis-cli flushall`.
+- Media files must be readable by uid 10001 (the backend container). The writer now stores 0644 files. Files promoted with an older backend are 0600: run `chmod -R a+rX var/prod-media` (and the same on a server's media folder).
+- Before a server's first start, run `deploy/check-vars.sh <vars file>`: it refuses CHANGE_ME values and the dummy local secrets.
 - Changing `my-list-fe/deploy/Caddyfile` needs `up -d --build web`.

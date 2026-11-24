@@ -2,6 +2,15 @@
 # The backend refuses to start with a CHANGE_ME secret (too short) or an http URL.
 #   docker compose -f compose.prod.yml --env-file /etc/dgc/production.vars up -d --build
 # Never reuse deploy/localhost.vars.
+#
+# Run deploy/check-vars.sh on the filled file before the first start: it refuses a CHANGE_ME value
+# and the dummy local-only secrets.
+#
+# POSTGRES_PASSWORD is used only when Postgres creates its data folder, the first time the db
+# volume is empty. Changing it later in this file does not change the password inside the
+# database. If the stack was ever started with CHANGE_ME (or any throwaway password), run
+# `docker compose -f compose.prod.yml --env-file <this file> down -v` before the first real
+# start, or change the password inside Postgres with ALTER USER.
 
 ENVIRONMENT=production
 # The domain, no scheme. Caddy gets a certificate for it from Let's Encrypt.

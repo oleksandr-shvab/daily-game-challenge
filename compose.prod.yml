@@ -132,7 +132,9 @@ services:
       - db_data:/var/lib/postgresql/data
     networks: [data]
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "dgc", "-d", "daily_game_challenge"]
+      # -h makes it a TCP check. Without it pg_isready asks the Unix socket, which also answers
+      # during the image's temporary init server, before the real one listens.
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "dgc", "-d", "daily_game_challenge"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -142,8 +144,19 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
     # Append-only so sessions survive a crash. noeviction because evicting a session would silently
-    # log a user out, and would drop rate-limit counters.
-    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec", "--maxmemory-policy", "noeviction"]
+    # log a user out, and would drop rate-limit counters. noeviction does nothing without a limit,
+    # so --maxmemory sets one: at the cap writes fail (a login or a counter errors) instead of
+    # evicting. 256mb holds far more sessions than this site will have; raise it with the traffic.
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+      - --maxmemory
+      - 256mb
+      - --maxmemory-policy
+      - noeviction
     volumes:
       - redis_data:/data
     networks: [data]
@@ -155,7 +168,12 @@ services:
 
 networks:
   # Caddy and the backend only. Caddy cannot reach Postgres or Redis.
-  edge: {}
+  # IPv6 is on here so a visitor who comes in over IPv6 reaches the backend with their own address
+  # (Docker gives the network a ULA subnet and masquerades nothing for it). On an IPv4-only edge
+  # every IPv6 visitor would share one source address, and so one per-IP rate-limit bucket. If a
+  # host cannot give this network IPv6, set it to {} and publish no AAAA record.
+  edge:
+    enable_ipv6: true
   # A plain bridge, not `internal: true`: Docker does not publish ports of a container that sits
   # only on an internal network, and compose.admin.yml publishes the database port.
   data: {}

@@ -9,7 +9,12 @@
 # Caddy's local root certificate copied out of the `web` container (never `curl -k`).
 #
 # --system-ca     for a real domain: no --resolve, trust the system's certificate store, and skip
-#                 check 12 (it stops the backend for a moment).
+#                 check 10 (no test accounts on a real site) and check 12 (it stops the backend).
+#
+# Rate limits: checks 9 and 10 each send one request the backend counts per IP (a login, a
+# register), and every request from this laptop comes from the Docker gateway address. A 429 there
+# prints "skip" with the Retry-After value, not a failure, because it proves nothing about the
+# rule under test. Wait for the window, or flush Redis on the local stack, and run it again.
 # HTTP_PORT       the host port of plain http. Default: asked from the running `web` container
 #                 (with --system-ca: 80).
 # SKIP_CHECKS     space-separated numbers to skip, for example SKIP_CHECKS="11" before content exists.
@@ -46,8 +51,9 @@ else
   }
   web=$(container_of web)
   [[ -n $web ]] || { echo "FAIL 0: the web container of project dgc-prod is not running" >&2; exit 1; }
-  docker cp "$web:/data/caddy/pki/authorities/local/root.crt" "$tmp/root.crt" >/dev/null
-  [[ -n $http_port ]] || http_port=$(docker port "$web" 80/tcp | head -1 | sed 's/.*://')
+  docker cp "$web:/data/caddy/pki/authorities/local/root.crt" "$tmp/root.crt" >/dev/null 2>&1 ||
+    { echo "FAIL 0: cannot copy Caddy's root certificate out of the web container (is it healthy yet?)" >&2; exit 1; }
+  [[ -n $http_port ]] || http_port=$(docker port "$web" 80/tcp 2>/dev/null | head -1 | sed 's/.*://' || true)
   curl_args+=(--cacert "$tmp/root.crt"
     --resolve "$site:$https_port:127.0.0.1" --resolve "$site:$http_port:127.0.0.1")
 fi
@@ -98,11 +104,22 @@ security_header_problems() {
   echo "$problems"
 }
 
+# need_index: fetch / once, for the checks that read it (1, 2, 3 and 5), so a skipped check 1
+# does not leave the others with no files.
+have_index=0
+index_status=000
+need_index() {
+  ((have_index)) && return 0
+  fetch index "$base/"
+  index_status=$status
+  have_index=1
+}
+
 # 1: the page, no-cache, the exact CSP.
 if wanted 1; then
-  fetch index "$base/"
+  need_index
   csp=$(hdr index content-security-policy)
-  if [[ $status != 200 ]]; then fail 1 "GET / answered $status"
+  if [[ $index_status != 200 ]]; then fail 1 "GET / answered $index_status"
   elif [[ $(hdr index cache-control) != no-cache ]]; then fail 1 "Cache-Control of / is '$(hdr index cache-control)', want no-cache"
   elif [[ $csp != "$expected_csp" ]]; then fail 1 "CSP is '$csp', want '$expected_csp'"
   else ok 1; fi
@@ -110,14 +127,19 @@ fi
 
 # 2: the other headers on the same response.
 if wanted 2; then
+  need_index
   problems=$(security_header_problems index)
-  if [[ -n $problems ]]; then fail 2 "wrong or missing on /:$problems"; else ok 2; fi
+  if [[ $index_status != 200 ]]; then fail 2 "GET / answered $index_status"
+  elif [[ -n $problems ]]; then fail 2 "wrong or missing on /:$problems"
+  else ok 2; fi
 fi
 
 # 3: a hashed asset is immutable.
 if wanted 3; then
+  need_index
   asset=$(grep -o '/assets/[^"]*\.js' "$tmp/index.body" | head -1 || true)
-  if [[ -z $asset ]]; then fail 3 "no /assets/*.js file named in index.html"
+  if [[ $index_status != 200 ]]; then fail 3 "GET / answered $index_status, so index.html names no asset"
+  elif [[ -z $asset ]]; then fail 3 "no /assets/*.js file named in index.html"
   else
     fetch asset "$base$asset"
     if [[ $status != 200 ]]; then fail 3 "$asset answered $status"
@@ -138,8 +160,10 @@ fi
 
 # 5: an SPA route gets index.html with no-cache.
 if wanted 5; then
+  need_index
   fetch route "$base/games/game-guesser/2020-01-01"
   if [[ $status != 200 ]]; then fail 5 "SPA route answered $status, want 200"
+  elif [[ $index_status != 200 ]]; then fail 5 "GET / answered $index_status, nothing to compare with"
   elif ! cmp -s "$tmp/route.body" "$tmp/index.body"; then fail 5 "SPA route body is not index.html"
   elif [[ $(hdr route cache-control) != no-cache ]]; then fail 5 "Cache-Control of the SPA route is '$(hdr route cache-control)'"
   else ok 5; fi
@@ -152,7 +176,7 @@ if wanted 6; then
     fetch health "$base$path"
     [[ $status == 404 ]] || bad+=" $path=$status"
   done
-  if [[ -n $bad ]]; then fail 6 "want 404 for both:$bad"; else ok 6; fi
+  if [[ -n $bad ]]; then fail 6 "want 404 for /api/healthz, /api/readyz, /api/docs and /api/redoc, got:$bad"; else ok 6; fi
 fi
 
 # 7: an API response with no Cache-Control of its own gets no-store, and Caddy sets the request id.
@@ -188,9 +212,14 @@ if wanted 8; then
   fi
 fi
 
+# unique_email: a new address per call, so the per-email limits never see a repeat.
+unique_email() { echo "smoke-$(date +%s)-$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')@example.com"; }
+
 # 9: Caddy keeps Origin (the backend's CSRF check), and caps a request body at 1 MB.
+# Only the login with the right Origin reaches the backend's limiter (the CSRF check refuses the
+# other first, and Caddy answers the big one itself), so one login is counted per run.
 if wanted 9; then
-  login='{"email":"nobody@example.com","password":"not-a-real-password"}'
+  login="{\"email\":\"$(unique_email)\",\"password\":\"not-a-real-password\"}"
   fetch good -X POST -H 'Content-Type: application/json' -H "Origin: https://$site" -d "$login" "$base/api/v1/auth/login"
   good=$status
   fetch evil -X POST -H 'Content-Type: application/json' -H 'Origin: https://evil.example' -d "$login" "$base/api/v1/auth/login"
@@ -198,29 +227,34 @@ if wanted 9; then
   head -c 2097152 /dev/zero | tr '\0' 'a' >"$tmp/big.body.in"
   fetch big -X POST -H 'Content-Type: application/json' -H "Origin: https://$site" --data-binary "@$tmp/big.body.in" "$base/api/v1/auth/login"
   big=$status
-  if [[ $good != 401 ]]; then fail 9 "login with the site's Origin answered $good, want 401"
-  elif [[ $evil != 403 ]] || ! grep -q csrf_origin_mismatch "$tmp/evil.body"; then fail 9 "login with a foreign Origin answered $evil, want 403 csrf_origin_mismatch"
+  if [[ $evil != 403 ]] || ! grep -q csrf_origin_mismatch "$tmp/evil.body"; then fail 9 "login with a foreign Origin answered $evil, want 403 csrf_origin_mismatch"
   elif [[ $big != 413 ]]; then fail 9 "a 2 MB body answered $big, want 413"
   elif [[ -n $(security_header_problems big) ]]; then fail 9 "the 413 lacks headers:$(security_header_problems big)"
+  elif [[ $good == 429 ]]; then echo "skip 9 (rate limited, Retry-After $(hdr good retry-after) s: Origin passthrough not checked)"
+  elif [[ $good != 401 ]]; then fail 9 "login with the site's Origin answered $good, want 401"
   else ok 9; fi
 fi
 
-# 10: the session cookie flags.
+# 10: the session cookie flags. Not on a real site: it would leave a test account behind.
 if wanted 10; then
-  email="smoke-$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')@example.com"
-  body="{\"email\":\"$email\",\"password\":\"smoke-test-password-1\"}"
-  fetch register -X POST -H 'Content-Type: application/json' -H "Origin: https://$site" -d "$body" "$base/api/v1/auth/register"
-  cookie=$(hdr register set-cookie)
-  if [[ $status != 201 && $status != 200 ]]; then fail 10 "register answered $status"
+  if ((system_ca)); then
+    echo "skip 10 (no test accounts on a real site)"
   else
-    missing=""
-    # The backend writes "SameSite=lax": compare in lower case.
-    for flag in secure httponly samesite=lax; do
-      [[ ${cookie,,} == *"$flag"* ]] || missing+=" $flag"
-    done
-    if [[ $cookie != session_id=* ]]; then fail 10 "no session_id cookie: '$cookie'"
-    elif [[ -n $missing ]]; then fail 10 "the cookie lacks:$missing"
-    else ok 10; fi
+    body="{\"email\":\"$(unique_email)\",\"password\":\"smoke-test-password-1\"}"
+    fetch register -X POST -H 'Content-Type: application/json' -H "Origin: https://$site" -d "$body" "$base/api/v1/auth/register"
+    cookie=$(hdr register set-cookie)
+    if [[ $status == 429 ]]; then echo "skip 10 (rate limited, Retry-After $(hdr register retry-after) s: cookie flags not checked)"
+    elif [[ $status != 201 && $status != 200 ]]; then fail 10 "register answered $status"
+    else
+      missing=""
+      # The backend writes "SameSite=lax": compare in lower case.
+      for flag in secure httponly samesite=lax; do
+        [[ ${cookie,,} == *"$flag"* ]] || missing+=" $flag"
+      done
+      if [[ $cookie != session_id=* ]]; then fail 10 "no session_id cookie: '$cookie'"
+      elif [[ -n $missing ]]; then fail 10 "the cookie lacks:$missing"
+      else ok 10; fi
+    fi
   fi
 fi
 
@@ -250,24 +284,33 @@ if wanted 11; then
 fi
 
 # 12: a 502 made by Caddy itself (the backend is down) carries the same headers. This stops the
-# backend for a few seconds, so it runs only against the local stack.
+# backend for a few seconds, so it runs only against the local stack. The check fails if the backend
+# is not healthy again within 60 seconds.
 if wanted 12; then
   if ((system_ca)); then
     echo "skip 12 (stops the backend)"
   else
     backend_container=$(container_of backend)
-    docker stop "$backend_container" >/dev/null
-    fetch down "$base/api/v1/clock"
-    down=$status
-    docker start "$backend_container" >/dev/null
-    for _ in $(seq 1 60); do
-      [[ $(docker inspect -f '{{.State.Health.Status}}' "$backend_container") == healthy ]] && break
-      sleep 1
-    done
-    backend_container=""
-    if [[ $down != 502 ]]; then fail 12 "with the backend stopped, /api/v1/clock answered $down, want 502"
-    elif [[ -n $(security_header_problems down) ]]; then fail 12 "the 502 lacks headers:$(security_header_problems down)"
-    else ok 12; fi
+    if [[ -z $backend_container ]]; then
+      fail 12 "no running backend container of project dgc-prod to stop"
+    elif ! docker stop "$backend_container" >/dev/null; then
+      backend_container=""
+      fail 12 "could not stop the backend container"
+    else
+      fetch down "$base/api/v1/clock"
+      down=$status
+      docker start "$backend_container" >/dev/null || fail 12 "could not start the backend container again"
+      healthy=0
+      for _ in $(seq 1 60); do
+        if [[ $(docker inspect -f '{{.State.Health.Status}}' "$backend_container" 2>/dev/null) == healthy ]]; then healthy=1; break; fi
+        sleep 1
+      done
+      backend_container=""
+      if ((!healthy)); then fail 12 "the backend was not healthy again within 60 s"
+      elif [[ $down != 502 ]]; then fail 12 "with the backend stopped, /api/v1/clock answered $down, want 502"
+      elif [[ -n $(security_header_problems down) ]]; then fail 12 "the 502 lacks headers:$(security_header_problems down)"
+      else ok 12; fi
+    fi
   fi
 fi
 
