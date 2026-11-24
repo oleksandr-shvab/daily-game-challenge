@@ -16,6 +16,8 @@ repo-internal detail (stack choices, file layout) — only the seams between the
 - Frontend calls `/api/v1/...`; Vite's dev proxy (and the production proxy) strips `/api` and
   forwards `/v1/...` to the backend. This keeps a stable frontend-facing path independent of backend
   mounting. A breaking change to the API means `/v2`, served next to `/v1` until the clients move.
+- In production the proxy is Caddy (`my-list-fe/deploy/Caddyfile`, in the frontend image). The site
+  and the API share one origin, so there is no CORS, and Caddy sets every response header and the CSP.
 - Frontend dev server: `http://localhost:5173`. Backend CORS allows this origin (local only).
 - The backend commits its OpenAPI document as `my-list-be/openapi/openapi.json` (rewrite it with
   `uv run python scripts/export_openapi.py`; a test and CI fail when it is stale). Operation ids are
@@ -425,7 +427,8 @@ Clue media:
   as an `<img>` or `<video>` source. In dev with local storage it is
   `http://localhost:5173/api/v1/media/<key>?exp=...&sig=...`, so it goes through the Vite proxy;
   with S3 storage it points at the bucket (the CSP of M1-40 needs `media-src` and `img-src` for the
-  bucket's origin).
+  bucket's origin: Caddy takes it from the `MEDIA_ORIGIN` setting, empty with local storage). In
+  production with local storage the base URL is `MEDIA_LOCAL_BASE_URL=https://<site>/api`.
 - Links exist only for steps the player has earned, on a visible puzzle. A step that is not earned
   has no link and no key anywhere in the response, and neither has the poster of an unearned video.
   Every earned step is signed, step 1 included.
@@ -495,7 +498,8 @@ Caching (`Cache-Control`):
 
 - `GET /healthz` (liveness, no dependencies) and `GET /readyz` (Postgres and Redis; `503` with
   `code: "service_unavailable"` and `params.failed` listing what is down). They are not part of the
-  app's API: the proxy must not expose them publicly.
+  app's API: the proxy must not expose them publicly. In production Caddy answers 404 for
+  `/api/healthz` and `/api/readyz`, and the backend port is never published.
 
 ## Clock
 

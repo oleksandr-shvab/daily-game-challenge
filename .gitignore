@@ -4,3 +4,6 @@ my-list-fe/
 
 .DS_Store
 .idea/
+
+# Media folder of the local production-like run (compose.prod.yml).
+var/

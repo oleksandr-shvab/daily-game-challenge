@@ -10,6 +10,7 @@ This folder is the small platform repo (its `.gitignore` excludes the two app fo
 - `my-list-fe/` — Vite + React + TypeScript SPA (TanStack Router/Query, Zustand, axios). Commands and architecture: `my-list-fe/CLAUDE.md`.
 - `CONTRACTS.md` — the FE/BE seam: API routing, auth cookie, password flows, errors, health endpoints, OpenAPI types.
 - `SPEC.md` — the product and game spec; `ARCHITECTURE.md` — the technical decisions for running it in production.
+- `compose.prod.yml` — the production stack (Caddy with the built SPA, API, one-shot migration, Postgres, Redis). `compose.admin.yml` — an override that publishes Postgres on `127.0.0.1:5434` only. `deploy/` — `localhost.vars` (dummy values for the local run), `production.vars.example` (placeholders), `smoke.sh` (12 checks against a running stack).
 
 Run commands from inside the repo they belong to (`cd my-list-be && uv run pytest`, `cd my-list-fe && npm run dev`). Run `git` inside the repo a change belongs to; run it from this folder only for the specs and `CONTRACTS.md`. Repo-internal rules live in the repo `CLAUDE.md` files and are not repeated here.
 
@@ -20,3 +21,24 @@ Run commands from inside the repo they belong to (`cd my-list-be && uv run pytes
 - Frontend API types are generated from the backend OpenAPI spec (Orval). After a backend schema change, regenerate them; do not hand-patch types.
 - Dev runs both servers: backend on `http://localhost:8000`, frontend on `http://localhost:5173`. The frontend calls `/api/...` and Vite's proxy strips `/api`. Always use `localhost`, not `127.0.0.1`, because the session cookie is host-scoped.
 - The parent `CONTRACTS.md` wording about messaging another repo's session (`SendMessage`, `ListAgents`) is for the case where each repo runs in its own window. When working from this folder, make both edits yourself.
+
+## Production-like run on this laptop
+
+The whole site runs from Compose at `https://dgc.localhost` with `ENVIRONMENT=production`. It is a separate host from the dev server, so its Secure cookie and HSTS never touch `localhost:5173`. The vars file holds dummy values only. Never deploy `deploy/localhost.vars`.
+
+```bash
+mkdir -p var/prod-media
+docker compose -f compose.prod.yml -f compose.admin.yml --env-file deploy/localhost.vars up -d --build
+docker compose -f compose.prod.yml --env-file deploy/localhost.vars ps -a   # all healthy, migrate exited 0
+# seed, from my-list-be (values from deploy/localhost.vars; the seed refuses anything but ENVIRONMENT=local):
+CI= ENVIRONMENT=local DATABASE_URL=postgresql+asyncpg://dgc:<POSTGRES_PASSWORD>@localhost:5434/daily_game_challenge \
+  SECRET_KEY=<SECRET_KEY> MEDIA_STORAGE=local MEDIA_LOCAL_DIR="<abs path of this folder>/var/prod-media" \
+  uv run --no-sync python scripts/seed_dev.py
+deploy/smoke.sh                                                              # ok 1 to ok 12
+docker compose -f compose.prod.yml --env-file deploy/localhost.vars down     # add -v to drop the data
+```
+
+- The plain-http port is published on 8080 (`HTTP_PORT` in the vars file), because port 80 is often taken on a laptop. The redirect still says `https://dgc.localhost/`: Caddy's `http_port` and `https_port` options are for the server's inside, and do not change the `Location` header. Keep `HTTPS_PORT` at 443.
+- Browsers send `*.localhost` to loopback by themselves. Caddy signs the certificate with its own local CA: accept the warning once, or import `/data/caddy/pki/authorities/local/root.crt` from the `web` container (`docker compose cp web:/data/caddy/pki/authorities/local/root.crt .`).
+- Check 12 stops the backend for a few seconds to get a 502 from Caddy.
+- Changing `my-list-fe/deploy/Caddyfile` needs `up -d --build web`.

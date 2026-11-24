@@ -1,0 +1,28 @@
+# Copy to /etc/dgc/production.vars on the server (root-owned, mode 600) and fill every CHANGE_ME.
+# The backend refuses to start with a CHANGE_ME secret (too short) or an http URL.
+#   docker compose -f compose.prod.yml --env-file /etc/dgc/production.vars up -d --build
+# Never reuse deploy/localhost.vars.
+
+ENVIRONMENT=production
+# The domain, no scheme. Caddy gets a certificate for it from Let's Encrypt.
+SITE_ADDRESS=CHANGE_ME
+# https://<the domain>
+FRONTEND_URL=CHANGE_ME
+# https://<the domain>/api  (local media storage)
+MEDIA_LOCAL_BASE_URL=CHANGE_ME
+MEDIA_STORAGE=local
+# The object-storage origin for clue media, for the CSP. Empty with local storage.
+MEDIA_ORIGIN=
+# Contact for the certificate authority. May be empty.
+ACME_EMAIL=
+
+# Host ports of the web service.
+HTTP_PORT=80
+HTTPS_PORT=443
+
+# openssl rand -hex 32
+POSTGRES_PASSWORD=CHANGE_ME
+# openssl rand -hex 32
+SECRET_KEY=CHANGE_ME
+# openssl rand -hex 32  (must differ from SECRET_KEY)
+MEDIA_SIGNING_KEY=CHANGE_ME

@@ -1,0 +1,167 @@
+# Production stack: Caddy (with the built SPA inside), the API, a one-shot migration, Postgres, Redis.
+# Settings come from one vars file:
+#   docker compose -f compose.prod.yml --env-file deploy/localhost.vars up -d --build
+# Required values use ${VAR:?}, so a missing one stops Compose before anything starts.
+# Only `web` publishes ports. The backend port is never published: uvicorn trusts the forwarded
+# headers of whoever can reach it, so only Caddy may share the `edge` network with the backend.
+name: dgc-prod
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
+x-hardening: &hardening
+  security_opt:
+    - no-new-privileges:true
+  logging: *logging
+
+x-backend-environment: &backend-environment
+  ENVIRONMENT: ${ENVIRONMENT:?set ENVIRONMENT in the vars file}
+  DATABASE_URL: postgresql+asyncpg://dgc:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in the vars file}@db:5432/daily_game_challenge
+  REDIS_URL: redis://redis:6379/0
+  SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in the vars file}
+  MEDIA_SIGNING_KEY: ${MEDIA_SIGNING_KEY:?set MEDIA_SIGNING_KEY in the vars file}
+  FRONTEND_URL: ${FRONTEND_URL:?set FRONTEND_URL in the vars file}
+  # Same origin, so no CORS at all. Empty would fall back to the localhost default.
+  BACKEND_CORS_ORIGINS: "[]"
+  MEDIA_STORAGE: ${MEDIA_STORAGE:-local}
+  MEDIA_LOCAL_BASE_URL: ${MEDIA_LOCAL_BASE_URL:?set MEDIA_LOCAL_BASE_URL in the vars file}
+  # Empty values are ignored by the backend (env_ignore_empty), so these only matter with s3.
+  S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-}
+  S3_REGION: ${S3_REGION:-}
+  S3_BUCKET: ${S3_BUCKET:-}
+  S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+  S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+
+services:
+  web:
+    <<: *hardening
+    build: ./my-list-fe
+    image: dgc-web:local
+    restart: unless-stopped
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
+    # Caddy runs as uid 10001 and binds 80 and 443 inside its own network namespace.
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: 0
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?set SITE_ADDRESS in the vars file}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+      MEDIA_ORIGIN: ${MEDIA_ORIGIN:-}
+    # The host ports can differ from 80 and 443 when those are taken (the container ports stay
+    # as they are, so Caddy's redirect still points to plain https://<site>/). Keep HTTPS_PORT
+    # at 443 unless you also tell Caddy (https_port): the redirect would not carry another port.
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+      - "${HTTPS_PORT:-443}:443/udp"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [edge]
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  backend:
+    <<: *hardening
+    build: ./my-list-be
+    image: dgc-backend:local
+    restart: unless-stopped
+    stop_grace_period: 30s
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
+    environment: *backend-environment
+    volumes:
+      # The server only reads media. Content arrives from the workstation.
+      - type: bind
+        source: ${MEDIA_HOST_DIR:-./var/prod-media}
+        target: /app/var/media
+        read_only: true
+    networks: [edge, data]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # The slim image has no curl.
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=3)
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  migrate:
+    <<: *hardening
+    image: dgc-backend:local
+    restart: "no"
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
+    command: ["alembic", "upgrade", "head"]
+    environment: *backend-environment
+    networks: [data]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    <<: *hardening
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dgc
+      POSTGRES_DB: daily_game_challenge
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in the vars file}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks: [data]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "dgc", "-d", "daily_game_challenge"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    <<: *hardening
+    image: redis:7-alpine
+    restart: unless-stopped
+    # Append-only so sessions survive a crash. noeviction because evicting a session would silently
+    # log a user out, and would drop rate-limit counters.
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redis_data:/data
+    networks: [data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+networks:
+  # Caddy and the backend only. Caddy cannot reach Postgres or Redis.
+  edge: {}
+  # A plain bridge, not `internal: true`: Docker does not publish ports of a container that sits
+  # only on an internal network, and compose.admin.yml publishes the database port.
+  data: {}
+
+volumes:
+  db_data:
+  redis_data:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,9 @@
+# Publishes Postgres on this machine's loopback only, for two jobs:
+#   - seeding the local run (scripts/seed_dev.py, see the platform CLAUDE.md);
+#   - on a server, promote and schedule from the workstation through an SSH tunnel.
+# Never change the address to 0.0.0.0: Docker publishes ports past the host firewall.
+#   docker compose -f compose.prod.yml -f compose.admin.yml --env-file deploy/localhost.vars up -d
+services:
+  db:
+    ports:
+      - "127.0.0.1:${DB_ADMIN_PORT:-5434}:5432"
