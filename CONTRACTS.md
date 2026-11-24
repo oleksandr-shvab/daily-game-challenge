@@ -163,8 +163,9 @@ repo-internal detail (stack choices, file layout) — only the seams between the
   and trusts the `X-Forwarded-For` that Caddy sets itself; Caddy must not trust a client's value
   (keep `trusted_proxies` unset). If this breaks, every visitor shares one address.
 - If Redis fails, the limiter lets the request through.
-- The e2e suite registers and logs in from one address, so its backend config raises every
-  `RATE_LIMIT_*` count to 1000.
+- The e2e suite registers and logs in from one address, so the e2e backend config in the frontend
+  repo (`e2e/support/backend-env.ts`) raises every `RATE_LIMIT_*` count to 1000. Staging and
+  production refuse to start with `RATE_LIMITS_ENABLED=false`.
 - A guest's guess stores nothing, so the response must say whether it is right. A script can try
   titles until one is correct; the guess limit only makes that slow (SPEC decision 80).
 
