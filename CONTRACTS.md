@@ -68,7 +68,7 @@ repo-internal detail (stack choices, file layout) — only the seams between the
   stores it in Redis (`password_reset:{token}` → user id, 2-day TTL), and "sends" a
   reset email — no real sender is wired up yet. In `local` and `test` the link is logged
   server-side, so during dev it must be copied from backend logs; in any other environment nothing
-  is logged (the link is an account-takeover token).
+  is logged (the link is an account-takeover token). The frontend's Playwright suite reads the logged line from the backend's output, so the line keeps the email and the link (`tests/test_password_reset.py` in the backend pins it).
 - Reset link format: `{FRONTEND_URL}/reset-password?token={token}` (`FRONTEND_URL`
   defaults to `http://localhost:5173` in dev). Frontend's `/reset-password` route
   reads `token` from the query string and submits it back in the next call.
