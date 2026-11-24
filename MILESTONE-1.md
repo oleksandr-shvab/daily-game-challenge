@@ -114,7 +114,7 @@ The feature spec for this phase is [specs/04-phase-3-content.md](specs/04-phase-
 
 | ID | Task | Repo | Est. | Depends | Done when |
 |---|---|---|---|---|---|
-| M1-50 | Playwright smoke tests (guest plays a game, register and login, reset password, language switch, archive) on desktop, phone and tablet, with axe | FE, PL | 1.0 | Phase 2 | green in CI |
+| M1-50 | Playwright smoke tests (guest plays a game, register and login, reset password, language switch, archive) on desktop, phone and tablet, with axe | FE, PL | 1.0 | Phase 2 | green in CI. **Done 2026-11-24:** frontend #39 and backend #34; the suite lives in `my-list-fe/e2e/` (decision 78), Chromium only at desktop, phone and tablet sizes; first CI run 15 of 15 in 37 s; two accessibility findings on the allow-list |
 | M1-51 | k6 test of the 00:00 UTC spike at about 5 times the expected peak; fix what it finds | PL | 0.7 | M1-40 | p95 under 300 ms on guess submit |
 | M1-52 | Staging and production deploy workflows (GitHub Actions over SSH with Compose, required approval, rehearsed rollback), backups (nightly encrypted dump, copy off-site, one tested restore), uptime monitor and the two alerts, runbooks | PL | 1.5 | D3 | rollback rehearsed; restore tested |
 | M1-53 | Dependabot with grouping, secret scan in CI, `npm audit` findings looked at | BE, FE | 0.3 | none | PRs arrive; audit triaged |

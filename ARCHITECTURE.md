@@ -84,6 +84,8 @@ Recommended option first. These are asked in batches and recorded in `SPEC.md` s
 
 **Progress, 2026-10-27 (evening): task 8 is open as frontend PR #9; PRs #5 (backend) and #8 (frontend) are merged.** react-i18next with English and Russian (typed keys, language from the saved choice, then the browser, then English, a switcher on every page), backend errors translated by code with Russian plurals, router error and not-found screens, the Query retry policy, one error-reporting function for the future Sentry hook, and a one-time reload after a failed lazy chunk. Checked in a browser against the real backend. Still open: saving the language on the account (needs a backend field), Dockerfiles, Caddy and staging (task 9), Playwright and the load test (task 10), CSRF Origin check, rate limits, real email sending, Sentry, `npm audit`.
 
+**Progress, 2026-11-24: Playwright and axe run in the frontend CI** (M1-50, frontend #39, backend #34, decision 78). `my-list-fe/e2e/` holds 5 smoke journeys on Chromium at desktop, phone and tablet sizes against Postgres and Redis service containers and the backend checked out at `main`; it runs on pull requests, pushes to main and nightly. The load test (task 10's other half) is still open (M1-51).
+
 ## 4. Configuration, secrets and environments
 
 - **Backend config.** pydantic-settings is already in use. Make `ENVIRONMENT` a `Literal["local","test","staging","production"]`, use `SecretStr` for secrets, remove `TEST_DATABASE_URL` from production settings, and add a startup check that refuses to boot outside local on a placeholder `SECRET_KEY`, on non-HTTPS cookies or on localhost origins. `.env` files are for local only; real environments get variables from Compose.
