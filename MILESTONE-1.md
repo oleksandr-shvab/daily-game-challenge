@@ -6,6 +6,8 @@ Status: draft 1, 2026-10-27. Plan only; nothing in it is built yet unless it say
 
 Milestone 1 is done when all of this is true on the real domain:
 
+> **Changed 2026-11-24 (decision 81):** the site is not hosted for now. Milestone 1 is done when everything below that needs no server or domain is built and tested locally (the production-like Compose run at `https://dgc.localhost`), and everything that needs one is a written step in the launch runbook. Section 4a lists the remaining tasks in order.
+
 1. The site is public over HTTPS. A visitor opens it and sees today's game guesser puzzle on the main screen, with no account (decisions 3 and 5).
 2. The nav lists the games (one entry for now) and the site is called "Daily Game Challenge" everywhere (decisions 1, 4).
 3. A guest can play today's puzzle and past puzzles, see the end screen, stats and a share text; progress survives a reload (decisions 7, 16, 20).
@@ -119,6 +121,24 @@ The feature spec for this phase is [specs/04-phase-3-content.md](specs/04-phase-
 | M1-52 | Staging and production deploy workflows (GitHub Actions over SSH with Compose, required approval, rehearsed rollback), backups (nightly encrypted dump, copy off-site, one tested restore), uptime monitor and the two alerts, runbooks | PL | 1.5 | D3 | rollback rehearsed; restore tested |
 | M1-53 | Dependabot with grouping, secret scan in CI, `npm audit` findings looked at | BE, FE | 0.3 | none | PRs arrive; audit triaged |
 | M1-54 | Launch checklist run (ARCHITECTURE.md section 4) and a Russian-reachability check from a Russian vantage point | PL | 0.5 | all | checklist signed off |
+
+## 4a. Finishing Milestone 1 locally (decision 81, 2026-11-24)
+
+Remaining work in order. "Runbook" means the part that needs a server or a domain is written into `docs/runbooks/launch.md` instead of done.
+
+| # | Task | Local scope | Runbook part | State |
+|---|---|---|---|---|
+| 1 | M1-40 Docker (plan 06) | BE-D1 backend #35, FE-D1 frontend #42, then PL-D1 Compose + smoke at `https://dgc.localhost`, PL-D2 launch runbook | server, domain, real certificate | BE-D1 and FE-D1 open, green |
+| 2 | Security hardening (plan 07, includes M1-42 and M1-53) | 9 PRs: rate limits, dependency audits and Dependabot, auth fixes, redirect cap, security logs, required `ENVIRONMENT` | DNS items O-1 to O-4 | planned |
+| 3 | M1-44 Account deletion and export | `DELETE /v1/me`, `GET /v1/me/export`, profile buttons, audit-log table; a short spec first | none | not started |
+| 4 | M1-47 Share card | static share image and meta tags | absolute URLs on the real domain | not started |
+| 5 | M1-43 Real email | arq queue behind the email interface, real templates, Mailpit in the Compose stacks to read mail locally | provider (D4), SPF, DKIM, DMARC | not started |
+| 6 | M1-52 Backups and deploy | nightly encrypted `pg_dump` + media copy, one rehearsed restore, deploy workflow rehearsed against a second local Compose project, rollback rehearsed | SSH deploy to a server, off-site copy, uptime monitor | not started |
+| 7 | M1-45 Error tracking | Sentry SDK in both apps, off without a DSN, request id on the error screen, no personal data, source maps from CI | Sentry project and DSN | not started |
+| 8 | M1-46 Legal pages | footer, privacy policy, terms, takedown contact in English and Russian, marked as drafts | lawyer's review, real contact address (D6) | not started |
+| 9 | M1-51 Load test | k6 midnight spike at about 5x the expected peak against the local Compose stack; fix what it finds | rerun on the server | not started |
+| 10 | DoD 7 Content | the owner reviews about 25 more puzzles to reach 30 scheduled ahead | none | 5 of 30, any time in parallel |
+| 11 | M1-54 Launch checklist | run every item that applies locally, sign off | the rest, marked "needs hosting" | last |
 
 ## 5. Order and the critical path
 
