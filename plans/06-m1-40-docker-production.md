@@ -66,7 +66,7 @@ No questions could be asked (this planner runs as a subagent). The brief's open 
   - Access logging stays off. If it is ever turned on, a log filter must drop the `token` query parameter, because `/reset-password?token=...` is an account-takeover token (plan 07, P06-14).
   - `X-Content-Type-Options: nosniff`; `Referrer-Policy: strict-origin-when-cross-origin`; `X-Frame-Options: DENY` (for old browsers; `frame-ancestors` is the real rule); `Cross-Origin-Opener-Policy: same-origin`.
   - `Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()`. It leaves fullscreen and the clipboard alone, because the larger clue view (decision 77) and the share button may use them.
-  - `Server` is removed from Caddy's own responses and from the backend's (`header_down -Server`).
+  - `Server` is removed from Caddy's own responses and from the backend's (`header_down -Server`). Accepted exception (2026-11-24): Caddy's automatic port-80 to HTTPS redirect still sends `Server: Caddy` (no version); removing it would need a hand-written `http://` block, which P06-2 advises against.
   - The inline theme script moves to `public/theme-init.js`, loaded by a plain `<script src>` in `<head>`. It stays blocking, so there is still no theme flash. This avoids a CSP hash that would have to change with every edit of the script.
 - **R-5. Caching and SPA routing in Caddy.**
   - `/assets/*` (hashed by Vite) gets `Cache-Control: public, max-age=31536000, immutable`. A missing asset is a real **404, never `index.html`**: an old tab must see the failed chunk so `vite:preloadError` fires, and must not get HTML served as JavaScript.
@@ -201,7 +201,7 @@ Total: about 3 hours of agent time, mostly in two waves, and about 1.5 hours of 
 | `docs/runbooks/launch.md` (new, platform) | The launch runbook | PL-D2 |
 | `MILESTONE-1.md`, `ARCHITECTURE.md`, `SPEC.md` | M1-40 status; a progress line; decision 79 with the owner's answers to the open questions below | PL-D2 |
 
-Not touched: any file under `my-list-be/app/`, `my-list-be/tests/`, `my-list-fe/src/`, `src/api/generated/`, `e2e/`, `e2e.yml`, the content database, and every `.env` file.
+Not touched: any file under `my-list-be/app/`, `my-list-be/tests/`, `my-list-fe/src/` (one exception, added 2026-11-24 during FE-D1: `src/lib/zod-config.ts` sets `z.config({ jitless: true })`, imported first in `src/main.tsx`, because zod 4's eval probe was the only CSP violation left and `'unsafe-eval'` stays out), `src/api/generated/`, `e2e/`, `e2e.yml`, the content database, and every `.env` file.
 
 ## Facts found (file:line)
 
