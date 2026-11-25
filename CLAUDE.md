@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Workspace layout
 
-This folder is the small platform repo (its `.gitignore` excludes the two app folders). It holds two independent repos, each with its own `.git`, `CLAUDE.md` and `.claude/` (settings and skills), plus the files that tie them together:
+This folder is the small platform repo, published as the umbrella repo `oleksandr-shvab/daily-game-challenge` (its `.gitignore` excludes the two app folders; `README.md` is the public front page). On GitHub the app repos are `daily-game-challenge-be` and `daily-game-challenge-fe`; locally they keep the folder names below, which Compose, scripts and CI paths rely on. It holds two independent repos, each with its own `.git`, `CLAUDE.md` and `.claude/` (settings and skills), plus the files that tie them together:
 
 - `my-list-be/` — FastAPI backend (Python 3.12, uv with `pyproject.toml` and `uv.lock`, Postgres, Redis). Commands and architecture: `my-list-be/CLAUDE.md`.
 - `my-list-fe/` — Vite + React + TypeScript SPA (TanStack Router/Query, Zustand, axios). Commands and architecture: `my-list-fe/CLAUDE.md`.

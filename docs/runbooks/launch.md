@@ -38,7 +38,7 @@ Parts: A try it on this laptop, B what you need, C first start, D content, E bac
 
 ## C. First start
 
-1. Clone the three repos side by side on the server (`my-list-be`, `my-list-fe`, and the platform repo; the platform repo has no remote, so `rsync` or `scp` it up). Build happens on the server for now.
+1. Clone the umbrella repo on the server, and the two app repos inside it under their local folder names: `git clone https://github.com/oleksandr-shvab/daily-game-challenge.git`, then in it `git clone .../daily-game-challenge-be.git my-list-be` and `git clone .../daily-game-challenge-fe.git my-list-fe`. Build happens on the server for now.
 2. Make the vars file. It lives outside the repo, root-owned, mode 600:
    ```bash
    sudo install -d -m 700 /etc/dgc
